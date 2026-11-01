@@ -1,1 +1,1 @@
-# real time pbject detection 
+# REAL TIME OBJECT DETECTION

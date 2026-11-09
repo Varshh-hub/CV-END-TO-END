@@ -18,20 +18,18 @@ CHARACTERS = {
     "8": Character("8", "THE ANCIENT ONE", (125, 205, 95), (225, 245, 175)),
 }
 
-
-# MediaPipe Hand Landmarker model configuration
+# MediaPipe Gesture Recognizer model configuration
 from pathlib import Path
 
-SRC_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SRC_DIR.parent
-
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MODEL_DIR = PROJECT_ROOT / "models"
-MODEL_PATH = MODEL_DIR / "hand_landmarker.task"
-
+MODEL_PATH = MODEL_DIR / "gesture_recognizer.task"
 MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/"
-    "hand_landmarker/hand_landmarker/float16/1/"
-    "hand_landmarker.task"
+    "gesture_recognizer/gesture_recognizer/float16/1/"
+    "gesture_recognizer.task"
 )
-
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
+
+# Ninth character selection
+CHARACTERS["9"] = Character("9", "WICCAN", (190, 80, 235), (245, 190, 255))

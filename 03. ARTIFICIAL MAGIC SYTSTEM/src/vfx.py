@@ -7,313 +7,374 @@ import numpy as np
 
 from config import Character
 
-def palm_center(p):
-    return np.mean(p[[0, 5, 9, 13, 17], :2], axis=0)
 
-def to_px(point, w, h):
-    return int(np.clip(point[0] * w, 0, w - 1)), int(np.clip(point[1] * h, 0, h - 1))
+# ---------------------------------------------------------------------
+# Shared drawing primitives. Each character uses its own visual language;
+# there is deliberately no generic finger-to-finger lightning/line effect.
+# ---------------------------------------------------------------------
 
-def hand_is_open(p):
-    wrist = p[0, :2]
-    checks = [(8, 6), (12, 10), (16, 14), (20, 18)]
+def palm_center(points):
+    return np.mean(points[[0, 5, 9, 13, 17], :2], axis=0)
+
+
+def to_px(point, width, height):
+    return (
+        int(np.clip(point[0] * width, 0, width - 1)),
+        int(np.clip(point[1] * height, 0, height - 1)),
+    )
+
+
+def hand_is_open(points):
+    wrist = points[0, :2]
+    checks = ((8, 6), (12, 10), (16, 14), (20, 18))
     extended = sum(
-        np.linalg.norm(p[tip, :2] - wrist) >
-        np.linalg.norm(p[pip, :2] - wrist) * 1.12
+        np.linalg.norm(points[tip, :2] - wrist)
+        > np.linalg.norm(points[pip, :2] - wrist) * 1.12
         for tip, pip in checks
     )
     return extended >= 3
 
-def is_pinching(p, threshold=0.060):
-    return float(np.linalg.norm(p[4, :2] - p[8, :2])) < threshold
 
-def draw_polyline(layer, points, color, thickness=2):
+def is_pinching(points, threshold=0.060):
+    return float(np.linalg.norm(points[4, :2] - points[8, :2])) < threshold
+
+
+def poly(layer, points, color, thickness=2, closed=False):
     if len(points) >= 2:
-        cv2.polylines(layer, [np.asarray(points, np.int32)], False,
-                      color, thickness, cv2.LINE_AA)
+        pts = np.asarray(points, dtype=np.int32)
+        cv2.polylines(layer, [pts], closed, color, thickness, cv2.LINE_AA)
 
-def glow(layer, center, radius, color, intensity=1.0):
+
+def glow(layer, center, radius, color, core=(245, 248, 255), strength=1.0):
     x, y = center
-    cv2.circle(layer, (x, y), max(2, int(radius * 2.8)),
-               color, -1, cv2.LINE_AA)
-    cv2.circle(layer, (x, y), max(1, int(radius)),
-               (245, 250, 255), -1, cv2.LINE_AA)
+    cv2.circle(layer, (x, y), max(2, int(radius * 2.8)), color, -1, cv2.LINE_AA)
+    cv2.circle(layer, (x, y), max(1, int(radius)), core, -1, cv2.LINE_AA)
 
-def ring(layer, center, radius, color, angle, count=3, aspect=0.72):
-    x, y = center
-    for i in range(count):
-        r = max(8, int(radius * (0.70 + 0.16 * i)))
-        cv2.ellipse(layer, (x, y), (r, max(5, int(r * aspect))),
-                    int(angle * (1 if i % 2 else -1) + i * 37),
-                    0, 350, color, max(1, 3 - i // 2), cv2.LINE_AA)
 
-def arc(layer, a, b, color, t, amplitude=8, thickness=2, branches=5):
-    a = np.asarray(a, dtype=float)
-    b = np.asarray(b, dtype=float)
+def bloom_composite(frame, overlay, blur=13, bloom_strength=0.8, detail_strength=0.95):
+    soft = cv2.GaussianBlur(overlay, (0, 0), blur)
+    frame[:] = cv2.addWeighted(frame, 1.0, soft, bloom_strength, 0)
+    frame[:] = cv2.addWeighted(frame, 1.0, overlay, detail_strength, 0)
+
+
+def mandala(layer, center, radius, color, accent, t, ancient=False):
+    """Layered, symmetrical sorcerer mandala: clean geometry, ticks and runes."""
+    cx, cy = center
+    radius = max(34, int(radius))
+    # Fine concentric rings with intentional gaps.
+    for i, scale in enumerate((1.00, 0.91, 0.78, 0.64, 0.48, 0.30)):
+        r = int(radius * scale)
+        start = int((t * (18 if i % 2 else -14) + i * 17) % 360)
+        cv2.ellipse(layer, center, (r, r), 0, start, start + 350,
+                    color if i % 2 == 0 else accent, 2 if i < 3 else 1, cv2.LINE_AA)
+
+    # Radial divisions and small rune-like rectangular marks.
+    for i in range(48):
+        a = math.tau * i / 48 + t * 0.025
+        r1 = radius * (0.82 if i % 4 else 0.75)
+        r2 = radius * (0.91 if i % 4 else 1.04)
+        p1 = (int(cx + math.cos(a) * r1), int(cy + math.sin(a) * r1))
+        p2 = (int(cx + math.cos(a) * r2), int(cy + math.sin(a) * r2))
+        cv2.line(layer, p1, p2, accent if i % 4 == 0 else color,
+                 2 if i % 4 == 0 else 1, cv2.LINE_AA)
+
+    # Nested rotated squares / octagonal geometry.
+    for sides, scale, rotation in ((4, 0.69, 45), (4, 0.52, 0), (8, 0.39, 22.5)):
+        pts = []
+        for i in range(sides):
+            a = math.tau * i / sides + math.radians(rotation) + t * 0.035
+            r = radius * scale
+            pts.append((int(cx + math.cos(a) * r), int(cy + math.sin(a) * r)))
+        poly(layer, pts, color, 2, True)
+
+    # Short rune strokes around the outer band; kept separate, not connected.
+    for i in range(24):
+        a = math.tau * i / 24 + t * 0.018
+        r = radius * 0.96
+        x, y = int(cx + math.cos(a) * r), int(cy + math.sin(a) * r)
+        tx, ty = -math.sin(a), math.cos(a)
+        length = 5 if i % 3 else 10
+        cv2.line(layer, (int(x - tx * length), int(y - ty * length)),
+                 (int(x + tx * length), int(y + ty * length)),
+                 accent, 1, cv2.LINE_AA)
+
+    # Bright central seal.
+    cv2.circle(layer, center, max(8, int(radius * 0.16)), color, 2, cv2.LINE_AA)
+    cv2.circle(layer, center, max(3, int(radius * 0.07)), accent, 2, cv2.LINE_AA)
+
+    if ancient:
+        # Additional fine petal geometry, characteristic of the Ancient One's
+        # layered golden-green spell language.
+        for i in range(12):
+            a = math.tau * i / 12 + t * 0.02
+            p1 = (int(cx + math.cos(a) * radius * 0.26),
+                  int(cy + math.sin(a) * radius * 0.26))
+            p2 = (int(cx + math.cos(a + 0.20) * radius * 0.57),
+                  int(cy + math.sin(a + 0.20) * radius * 0.57))
+            p3 = (int(cx + math.cos(a + 0.40) * radius * 0.26),
+                  int(cy + math.sin(a + 0.40) * radius * 0.26))
+            poly(layer, (p1, p2, p3), accent, 1)
+
+
+def electric_bolt(layer, start, end, color, seed, amplitude=16, branches=2, thickness=2):
+    """Jagged branching lightning with a bright white-hot core."""
+    rng = random.Random(seed)
+    a = np.asarray(start, dtype=float)
+    b = np.asarray(end, dtype=float)
     delta = b - a
-    norm = np.linalg.norm(delta) + 1e-6
-    perpendicular = np.array([-delta[1], delta[0]]) / norm
+    length = np.linalg.norm(delta) + 1e-6
+    perp = np.array([-delta[1], delta[0]]) / length
+    count = max(5, int(length / 24))
     pts = [tuple(a.astype(int))]
-    for i in range(1, branches):
-        f = i / branches
-        base = a + delta * f
-        jitter = math.sin(t * 17 + i * 5.7) * amplitude
-        pts.append(tuple((base + perpendicular * jitter).astype(int)))
+    for i in range(1, count):
+        f = i / count
+        offset = rng.uniform(-amplitude, amplitude)
+        q = a + delta * f + perp * offset
+        pts.append(tuple(q.astype(int)))
     pts.append(tuple(b.astype(int)))
-    draw_polyline(layer, pts, color, thickness)
-    draw_polyline(layer, pts, (235, 245, 255), 1)
+    poly(layer, pts, color, thickness)
+    poly(layer, pts, (245, 250, 255), max(1, thickness // 2))
+    if branches:
+        for j in range(branches):
+            idx = rng.randint(1, max(2, len(pts) - 2))
+            origin = pts[idx]
+            branch_end = (
+                int(origin[0] + rng.uniform(-35, 35)),
+                int(origin[1] + rng.uniform(-42, 42)),
+            )
+            electric_bolt(layer, origin, branch_end, color, seed + j + 91,
+                          amplitude * 0.45, 0, max(1, thickness - 1))
 
-import math
-class ParticleField:
-    def __init__(self, limit=420):
-        self.particles = deque(maxlen=limit)
 
-    def emit(self, origin, color, count=5, speed=2.0, spread=math.tau):
-        ox, oy = origin
-        for _ in range(count):
-            angle = random.random() * spread
-            velocity = random.uniform(0.5, speed)
-            self.particles.append({
-                "x": float(ox), "y": float(oy),
-                "vx": math.cos(angle) * velocity,
-                "vy": math.sin(angle) * velocity,
-                "life": random.randint(14, 34),
-                "max_life": 34,
-                "r": random.randint(1, 3),
-                "color": color,
-            })
+def energy_wisp(layer, start, end, color, t, seed=0, width=3):
+    """Soft flowing red/purple energy filament, not a straight connector."""
+    rng = random.Random(seed)
+    a = np.asarray(start, dtype=float)
+    b = np.asarray(end, dtype=float)
+    delta = b - a
+    length = np.linalg.norm(delta) + 1e-6
+    perp = np.array([-delta[1], delta[0]]) / length
+    pts = [tuple(a.astype(int))]
+    count = max(8, int(length / 18))
+    phase = rng.random() * math.tau
+    for i in range(1, count):
+        f = i / count
+        envelope = math.sin(math.pi * f)
+        offset = math.sin(t * 5.0 + f * 15.0 + phase) * 13 * envelope
+        offset += math.sin(t * 8.0 + f * 29.0 + phase) * 4 * envelope
+        q = a + delta * f + perp * offset
+        pts.append(tuple(q.astype(int)))
+    pts.append(tuple(b.astype(int)))
+    poly(layer, pts, color, width + 3)
+    poly(layer, pts, (255, 235, 245), max(1, width - 1))
 
-    def update_draw(self, layer):
-        alive = deque(maxlen=self.particles.maxlen)
-        for p in self.particles:
-            p["x"] += p["vx"]
-            p["y"] += p["vy"]
-            p["vx"] *= 0.985
-            p["vy"] *= 0.985
-            p["life"] -= 1
-            if p["life"] <= 0:
-                continue
-            fade = p["life"] / p["max_life"]
-            color = tuple(int(c * fade) for c in p["color"])
-            cv2.circle(layer, (int(p["x"]), int(p["y"])),
-                       max(1, int(p["r"] * fade)), color, -1, cv2.LINE_AA)
-            alive.append(p)
-        self.particles = alive
 
-from config import Character
 class MagicRenderer:
-    """Procedural, character-specific VFX inspired by each character's film look.
+    """Seven distinct, webcam-driven magic styles based on the supplied references.
 
-    These are original real-time approximations, not extracted or copied film assets.
+    These are procedural real-time VFX approximations, not original movie assets.
     """
 
     def __init__(self):
-        self.particles = ParticleField()
-        self.trails = {}
+        self.history = {}
 
-    def _trail(self, key, point, maxlen=24):
-        trail = self.trails.setdefault(key, deque(maxlen=maxlen))
+    def _remember(self, key, point, size=12):
+        trail = self.history.setdefault(key, deque(maxlen=size))
         trail.append(point)
         return list(trail)
 
+    def _render_strange(self, overlay, palm, elapsed, power):
+        radius = int(78 + 20 * power)
+        mandala(overlay, palm, radius, (0, 155, 255), (80, 220, 255), elapsed)
+        # Sparse sparks on the circumference only.
+        for i in range(8):
+            a = elapsed * 0.22 + i * math.tau / 8
+            q = (int(palm[0] + math.cos(a) * radius * 1.08),
+                 int(palm[1] + math.sin(a) * radius * 1.08))
+            cv2.circle(overlay, q, 2, (90, 225, 255), -1, cv2.LINE_AA)
+        glow(overlay, palm, 7, (0, 165, 255), (255, 245, 220))
+
+    def _render_wanda(self, overlay, palm, tips, elapsed, open_hand):
+        # Crimson source orb and diffuse red aura.
+        pulse = 1.0 + 0.16 * math.sin(elapsed * 7.0)
+        glow(overlay, palm, int(19 * pulse), (0, 0, 245), (255, 235, 245))
+        cv2.circle(overlay, palm, 31, (0, 0, 190), 2, cv2.LINE_AA)
+        # Short, turbulent tendrils emerging from the palm/fingertips.
+        active = tips[1:] if open_hand else [tips[1]]
+        for i, tip in enumerate(active):
+            energy_wisp(overlay, palm, tip, (0, 0, 235), elapsed,
+                        seed=40 + i, width=3)
+        # Red wisps curl around the hand instead of drawing a web of lines.
+        for i in range(5):
+            a = elapsed * 0.75 + i * math.tau / 5
+            end = (int(palm[0] + math.cos(a) * 48),
+                   int(palm[1] + math.sin(a) * 38))
+            energy_wisp(overlay, palm, end, (0, 0, 185), elapsed,
+                        seed=100 + i, width=2)
+
+    def _render_agatha(self, overlay, palm, tips, elapsed, open_hand):
+        # Purple energy gathers in the palm and coils around the fingertips.
+        glow(overlay, palm, 16, (220, 35, 235), (255, 245, 255))
+        for i, tip in enumerate(tips[1:]):
+            if open_hand or i == 0:
+                energy_wisp(overlay, palm, tip, (225, 45, 245),
+                            elapsed + i * 0.2, seed=200 + i, width=2)
+        # Small purple corona around the palm; no generic circular shield.
+        for i in range(3):
+            a = elapsed * 0.7 + i * math.tau / 3
+            q = (int(palm[0] + math.cos(a) * 27),
+                 int(palm[1] + math.sin(a) * 23))
+            cv2.circle(overlay, q, 4, (245, 90, 255), -1, cv2.LINE_AA)
+
+    def _render_loki(self, overlay, palm, tips, elapsed, open_hand):
+        # Emerald electrical discharge; irregular bolts radiate from the palm.
+        glow(overlay, palm, 13, (35, 205, 45), (230, 255, 225))
+        selected = tips[1:] if open_hand else [tips[1]]
+        for i, tip in enumerate(selected):
+            electric_bolt(overlay, palm, tip, (35, 225, 65),
+                          int(elapsed * 18) + i * 13, 13, 2, 3)
+        # A few detached arcs add the green electrical atmosphere.
+        for i in range(4):
+            a = elapsed * 0.9 + i * math.tau / 4
+            end = (int(palm[0] + math.cos(a) * 52),
+                   int(palm[1] + math.sin(a) * 44))
+            electric_bolt(overlay, palm, end, (55, 190, 35),
+                          int(elapsed * 15) + 300 + i, 9, 1, 2)
+
+    def _render_thor(self, overlay, palm, tips, elapsed, open_hand, fist):
+        # Cold blue-white lightning, with a bright central discharge.
+        glow(overlay, palm, 16 if fist else 11, (255, 175, 35), (255, 255, 255))
+        selected = tips if open_hand else [tips[1]]
+        for i, tip in enumerate(selected):
+            electric_bolt(overlay, palm, tip, (255, 205, 70),
+                          int(elapsed * 22) + i * 31, 19, 3, 3)
+        # Upward forks suggest the large storm-lightning look in the reference.
+        for i in range(3):
+            end = (palm[0] + (i - 1) * 35, max(8, palm[1] - 115 - i * 17))
+            electric_bolt(overlay, palm, end, (255, 225, 145),
+                          int(elapsed * 20) + 500 + i, 22, 2, 3)
+
+    def _render_wong(self, overlay, palm, elapsed, power):
+        # Distinct orange-gold circular shield with segmented outer rim.
+        radius = int(76 + 18 * power)
+        mandala(overlay, palm, radius, (0, 135, 255), (60, 205, 255), elapsed)
+        # Stronger segmented shield border.
+        for i in range(16):
+            start = int(i * 22.5 + elapsed * 9)
+            cv2.ellipse(overlay, palm, (radius + 9, radius + 9), 0,
+                        start, start + 13, (0, 175, 255), 3, cv2.LINE_AA)
+        glow(overlay, palm, 5, (0, 150, 255), (255, 250, 225))
+
+    def _render_ancient_one(self, overlay, palm, elapsed, power):
+        radius = int(83 + 15 * power)
+        mandala(overlay, palm, radius, (70, 190, 130), (175, 245, 190),
+                elapsed, ancient=True)
+        # Delicate luminous inner spokes, not long finger connections.
+        for i in range(12):
+            a = elapsed * 0.08 + i * math.tau / 12
+            p1 = (int(palm[0] + math.cos(a) * radius * 0.18),
+                  int(palm[1] + math.sin(a) * radius * 0.18))
+            p2 = (int(palm[0] + math.cos(a) * radius * 0.34),
+                  int(palm[1] + math.sin(a) * radius * 0.34))
+            cv2.line(overlay, p1, p2, (190, 255, 205), 2, cv2.LINE_AA)
+        glow(overlay, palm, 6, (90, 205, 145), (240, 255, 235))
+
     def render_hand(self, frame, character: Character, hand, elapsed, hand_id=0):
-        h, w = frame.shape[:2]
-        p = hand["points"]
-        gesture = hand["gesture"]
-        confidence = hand["confidence"]
-        palm = to_px(palm_center(p), w, h)
-        tips = [to_px(p[i, :2], w, h) for i in (4, 8, 12, 16, 20)]
-        index_tip = tips[1]
-        open_hand = gesture == "Open_Palm" or hand_is_open(p)
-        fist = gesture == "Closed_Fist"
-        pinch = is_pinching(p)
-        power = 1.0 if open_hand else (0.8 if fist else 0.65)
-        color, accent = character.bgr, character.accent
-
+        height, width = frame.shape[:2]
+        points = hand["points"]
+        palm = to_px(palm_center(points), width, height)
+        tips = [to_px(points[i, :2], width, height) for i in (4, 8, 12, 16, 20)]
+        open_hand = hand.get("gesture") == "Open_Palm" or hand_is_open(points)
+        fist = hand.get("gesture") == "Closed_Fist"
+        pinch = is_pinching(points)
+        power = 1.0 if open_hand else (0.82 if fist else 0.68)
         overlay = np.zeros_like(frame)
-        self.particles.emit(palm, color, count=2 if open_hand else 1, speed=2.4)
 
-        trail = self._trail((hand_id, character.name), index_tip)
-        if len(trail) > 2:
-            for i in range(1, len(trail)):
-                strength = i / len(trail)
-                c = tuple(int(v * strength) for v in accent)
-                cv2.line(overlay, trail[i - 1], trail[i], c,
-                         max(1, int(1 + strength * 5)), cv2.LINE_AA)
+        name = character.name
+        if name == "DOCTOR STRANGE":
+            self._render_strange(overlay, palm, elapsed, power)
+        elif name == "SCARLET WITCH":
+            self._render_wanda(overlay, palm, tips, elapsed, open_hand)
+        elif name == "AGATHA HARKNESS":
+            self._render_agatha(overlay, palm, tips, elapsed, open_hand)
+        elif name == "LOKI":
+            self._render_loki(overlay, palm, tips, elapsed, open_hand)
+        elif name == "THOR":
+            self._render_thor(overlay, palm, tips, elapsed, open_hand, fist)
+        elif name == "WONG":
+            self._render_wong(overlay, palm, elapsed, power)
+        elif name == "THE ANCIENT ONE":
+            self._render_ancient_one(overlay, palm, elapsed, power)
 
-        if character.name == "DOCTOR STRANGE":
-            radius = int(54 + 35 * power)
-            ring(overlay, palm, radius, color, elapsed * 78, 5, 0.62)
-            ring(overlay, palm, radius * 0.70, accent, -elapsed * 115, 4, 0.82)
-            for i in range(32):
-                a = elapsed * 0.8 + i * math.tau / 32
-                r1, r2 = radius * 0.72, radius * (0.91 if i % 4 else 1.08)
-                q1 = (int(palm[0] + math.cos(a) * r1),
-                      int(palm[1] + math.sin(a) * r1))
-                q2 = (int(palm[0] + math.cos(a) * r2),
-                      int(palm[1] + math.sin(a) * r2))
-                cv2.line(overlay, q1, q2, accent if i % 4 == 0 else color, 2, cv2.LINE_AA)
-            for tip in tips:
-                arc(overlay, palm, tip, accent, elapsed, 5, 2)
-            if pinch:
-                ring(overlay, index_tip, 28, accent, elapsed * 130, 3)
-
-        elif character.name == "SCARLET WITCH":
-            radius = int(20 + 22 * power + 8 * math.sin(elapsed * 5))
-            glow(overlay, palm, radius, color)
-            for i, tip in enumerate(tips):
-                if open_hand or i == 1:
-                    arc(overlay, palm, tip, color, elapsed + i, 15, 4, 8)
-                    arc(overlay, palm, tip, accent, elapsed + i * 0.4, 7, 1, 8)
-            for i in range(9):
-                a = elapsed * 1.8 + i * math.tau / 9
-                end = (int(palm[0] + math.cos(a) * (55 + 12 * math.sin(elapsed * 3 + i))),
-                       int(palm[1] + math.sin(a) * (45 + 10 * math.cos(elapsed * 2 + i))))
-                arc(overlay, palm, end, color, elapsed + i, 12, 3, 7)
-
-        elif character.name == "AGATHA HARKNESS":
-            ring(overlay, palm, 42 + int(16 * power), color, elapsed * 90, 3, 0.55)
-            for i, tip in enumerate(tips):
-                phase = elapsed * 2.0 + i * 1.3
-                mid = (int((palm[0] + tip[0]) / 2 + 22 * math.sin(phase)),
-                       int((palm[1] + tip[1]) / 2 + 22 * math.cos(phase)))
-                draw_polyline(overlay, [palm, mid, tip], accent, 3)
-                glow(overlay, tip, 4, color)
-            for i in range(7):
-                a = -elapsed * 1.3 + i * math.tau / 7
-                q = (int(palm[0] + 58 * math.cos(a)),
-                     int(palm[1] + 38 * math.sin(a)))
-                arc(overlay, palm, q, color, elapsed + i, 10, 2)
-
-        elif character.name == "LOKI":
-            for offset in (-18, 0, 18):
-                pts = [(x + offset, y - offset // 2) for x, y in trail[-12:]]
-                if len(pts) > 1:
-                    draw_polyline(overlay, pts, color, 2)
-            for i in range(3):
-                radius = 22 + i * 18
-                ring(overlay, palm, radius, color if i != 1 else accent,
-                     elapsed * (65 if i % 2 else -80) + i * 40, 2, 0.9)
-            for i, tip in enumerate(tips):
-                if open_hand or i == 1:
-                    q = (tip[0] + int(18 * math.sin(elapsed * 3 + i)),
-                         tip[1] - int(12 * math.cos(elapsed * 2 + i)))
-                    arc(overlay, tip, q, accent, elapsed + i, 8, 2)
-
-        elif character.name == "THOR":
-            for tip in tips:
-                arc(overlay, palm, tip, accent, elapsed, 13, 3, 9)
-                if open_hand:
-                    for branch in range(2):
-                        bx = int((palm[0] + tip[0]) / 2 + random.randint(-25, 25))
-                        by = int((palm[1] + tip[1]) / 2 + random.randint(-25, 25))
-                        arc(overlay, (bx, by), tip, color, elapsed + branch, 8, 2, 6)
-            glow(overlay, palm, 11 if fist else 7, color)
-            if fist:
-                ring(overlay, palm, 48, accent, elapsed * 120, 3)
-
-        elif character.name == "HELA":
-            ring(overlay, palm, 30, color, -elapsed * 35, 2, 0.45)
-            blade_count = 5 if not open_hand else 8
-            for i in range(blade_count):
-                a = elapsed * 0.28 + i * math.tau / blade_count
-                length = 80 + 18 * math.sin(elapsed * 2 + i)
-                tip = (int(palm[0] + math.cos(a) * length),
-                       int(palm[1] + math.sin(a) * length * 0.55))
-                side = (int(palm[0] + math.cos(a + 0.12) * length * 0.72),
-                        int(palm[1] + math.sin(a + 0.12) * length * 0.40))
-                draw_polyline(overlay, [palm, side, tip], color, 5)
-                draw_polyline(overlay, [palm, tip], accent, 1)
-                glow(overlay, tip, 3, accent)
-
-        elif character.name == "WONG":
-            radius = int(58 + 28 * power)
-            ring(overlay, palm, radius, color, elapsed * 45, 6, 0.78)
-            for i in range(12):
-                a = elapsed * 0.22 + i * math.tau / 12
-                inner = (int(palm[0] + math.cos(a) * radius * 0.35),
-                         int(palm[1] + math.sin(a) * radius * 0.35))
-                outer = (int(palm[0] + math.cos(a) * radius),
-                         int(palm[1] + math.sin(a) * radius))
-                cv2.line(overlay, inner, outer, accent, 2, cv2.LINE_AA)
-                cv2.circle(overlay, outer, 4, color, 1, cv2.LINE_AA)
-            if fist:
-                ring(overlay, palm, radius + 12, accent, -elapsed * 55, 2)
-
-        elif character.name == "THE ANCIENT ONE":
-            ring(overlay, palm, 66, color, elapsed * 24, 7, 0.88)
-            for i in range(24):
-                a = -elapsed * 0.18 + i * math.tau / 24
-                r1, r2 = 49, 68 if i % 3 == 0 else 59
-                p1 = (int(palm[0] + math.cos(a) * r1),
-                      int(palm[1] + math.sin(a) * r1))
-                p2 = (int(palm[0] + math.cos(a) * r2),
-                      int(palm[1] + math.sin(a) * r2))
-                cv2.line(overlay, p1, p2, accent, 2, cv2.LINE_AA)
-            for tip in tips:
-                arc(overlay, palm, tip, color, -elapsed, 5, 2)
-
-        if fist:
-            ring(overlay, palm, max(16, int(34 - 8 * math.sin(elapsed * 4))),
-                 accent, elapsed * 150, 3)
-            glow(overlay, palm, 10, color)
-        elif pinch:
+        # Pinch focuses the existing effect at the fingertips; it does not add
+        # another generic ring around the hand.
+        if pinch:
             focus = ((tips[0][0] + tips[1][0]) // 2,
                      (tips[0][1] + tips[1][1]) // 2)
-            ring(overlay, focus, 22, accent, elapsed * 170, 3)
-            glow(overlay, focus, 5, color)
-        elif open_hand:
-            ring(overlay, palm, 74, color, elapsed * 38, 2)
+            glow(overlay, focus, 5, character.accent, (255, 255, 255))
 
-        self.particles.update_draw(overlay)
-        bloom = cv2.GaussianBlur(overlay, (0, 0), 9)
-        frame[:] = cv2.addWeighted(frame, 1.0, bloom, 0.48, 0)
-        frame[:] = cv2.addWeighted(frame, 1.0, overlay, 0.82, 0)
+        bloom_composite(frame, overlay, blur=12, bloom_strength=0.72,
+                        detail_strength=0.92)
 
     def render_two_hand_field(self, frame, character: Character, hands, elapsed):
         if len(hands) < 2:
             return
-        h, w = frame.shape[:2]
+
+        height, width = frame.shape[:2]
         p1, p2 = hands[0]["points"], hands[1]["points"]
-        c1, c2 = palm_center(p1), palm_center(p2)
-        distance = float(np.linalg.norm(c1 - c2))
-        if distance < 0.16:
-            return
-        center = to_px((c1 + c2) / 2, w, h)
-        radius = int(np.clip(distance * w * 0.52, 55, min(w, h) * 0.42))
+        c1 = to_px(palm_center(p1), width, height)
+        c2 = to_px(palm_center(p2), width, height)
+        midpoint = ((c1[0] + c2[0]) // 2, (c1[1] + c2[1]) // 2)
+        distance = math.dist(c1, c2)
         overlay = np.zeros_like(frame)
-        color, accent = character.bgr, character.accent
+        name = character.name
 
-        if character.name in ("DOCTOR STRANGE", "WONG", "THE ANCIENT ONE"):
-            ring(overlay, center, radius, color, elapsed * 55, 7, 0.72)
-            ring(overlay, center, int(radius * 0.64), accent, -elapsed * 75, 5, 0.95)
-            for i in range(24):
-                a = elapsed * 0.35 + i * math.tau / 24
-                a1 = (int(center[0] + math.cos(a) * radius * 0.42),
-                      int(center[1] + math.sin(a) * radius * 0.42))
-                a2 = (int(center[0] + math.cos(a) * radius * 0.92),
-                      int(center[1] + math.sin(a) * radius * 0.92))
-                cv2.line(overlay, a1, a2, color, 2, cv2.LINE_AA)
-        elif character.name == "THOR":
-            for i in range(18):
-                a = i * math.tau / 18
-                q = (int(center[0] + math.cos(a) * radius),
-                     int(center[1] + math.sin(a) * radius))
-                arc(overlay, to_px(c1, w, h), q, accent, elapsed + i, 16, 3, 8)
-                arc(overlay, to_px(c2, w, h), q, color, elapsed - i, 12, 2, 8)
-        elif character.name == "HELA":
-            for i in range(12):
-                a = elapsed * 0.15 + i * math.tau / 12
-                q = (int(center[0] + math.cos(a) * radius),
-                     int(center[1] + math.sin(a) * radius))
-                draw_polyline(overlay, [to_px(c1, w, h), q, to_px(c2, w, h)], color, 4)
-        else:
-            ring(overlay, center, radius, color, elapsed * 40, 4, 0.6)
-            for i in range(12):
-                a = elapsed + i * math.tau / 12
-                q = (int(center[0] + math.cos(a) * radius),
-                     int(center[1] + math.sin(a) * radius))
-                arc(overlay, to_px(c1, w, h), q, accent, elapsed + i, 14, 3)
+        if name == "AGATHA HARKNESS":
+            # Main purple beam between both palms, with a luminous core and
+            # two restrained flowing edge filaments.
+            cv2.line(overlay, c1, c2, (220, 35, 245), 23, cv2.LINE_AA)
+            cv2.line(overlay, c1, c2, (245, 120, 255), 10, cv2.LINE_AA)
+            cv2.line(overlay, c1, c2, (255, 245, 255), 3, cv2.LINE_AA)
+            energy_wisp(overlay, c1, c2, (230, 65, 255), elapsed, 701, 3)
+            energy_wisp(overlay, c2, c1, (210, 45, 245), elapsed + 0.5, 702, 2)
+            glow(overlay, c1, 13, (220, 35, 245))
+            glow(overlay, c2, 13, (220, 35, 245))
 
-        bloom = cv2.GaussianBlur(overlay, (0, 0), 12)
-        frame[:] = cv2.addWeighted(frame, 1.0, bloom, 0.52, 0)
-        frame[:] = cv2.addWeighted(frame, 1.0, overlay, 0.78, 0)
+        elif name == "SCARLET WITCH":
+            # Red energy surges between the hands as a turbulent crimson stream.
+            cv2.line(overlay, c1, c2, (0, 0, 190), 19, cv2.LINE_AA)
+            energy_wisp(overlay, c1, c2, (0, 0, 245), elapsed, 711, 5)
+            energy_wisp(overlay, c2, c1, (0, 0, 220), elapsed + 0.4, 712, 3)
+            glow(overlay, c1, 16, (0, 0, 245))
+            glow(overlay, c2, 16, (0, 0, 245))
+
+        elif name == "THOR":
+            # Lightning arcs leap through the space between the hands.
+            for i in range(5):
+                electric_bolt(overlay, c1, c2, (255, 215, 95),
+                              int(elapsed * 24) + 800 + i * 17,
+                              25 + i * 3, 2, 3 if i == 0 else 2)
+            glow(overlay, c1, 13, (255, 195, 65))
+            glow(overlay, c2, 13, (255, 195, 65))
+
+        elif name == "LOKI":
+            for i in range(3):
+                electric_bolt(overlay, c1, c2, (45, 210, 65),
+                              int(elapsed * 17) + 900 + i * 23,
+                              19 + i * 4, 2, 2)
+            glow(overlay, midpoint, 8, (45, 220, 65))
+
+        elif name in ("DOCTOR STRANGE", "WONG", "THE ANCIENT ONE"):
+            radius = int(np.clip(distance * 0.48, 55, min(width, height) * 0.34))
+            if name == "DOCTOR STRANGE":
+                mandala(overlay, midpoint, radius, (0, 155, 255),
+                        (80, 220, 255), elapsed)
+            elif name == "WONG":
+                mandala(overlay, midpoint, radius, (0, 135, 255),
+                        (60, 205, 255), elapsed)
+            else:
+                mandala(overlay, midpoint, radius, (70, 190, 130),
+                        (175, 245, 190), elapsed, ancient=True)
+
+        bloom_composite(frame, overlay, blur=16, bloom_strength=0.85,
+                        detail_strength=0.90)

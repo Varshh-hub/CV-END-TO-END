@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 @dataclass(frozen=True)
 class Character:
@@ -7,20 +8,18 @@ class Character:
     bgr: tuple[int, int, int]
     accent: tuple[int, int, int]
 
+# Seven requested characters only. OpenCV uses BGR colour order.
 CHARACTERS = {
-    "1": Character("1", "DOCTOR STRANGE", (35, 155, 255), (210, 235, 255)),
-    "2": Character("2", "SCARLET WITCH", (35, 35, 245), (120, 110, 255)),
-    "3": Character("3", "AGATHA HARKNESS", (190, 65, 220), (245, 175, 255)),
-    "4": Character("4", "LOKI", (65, 205, 85), (175, 255, 190)),
-    "5": Character("5", "THOR", (255, 215, 95), (245, 250, 255)),
-    "6": Character("6", "HELA", (45, 145, 65), (165, 245, 175)),
-    "7": Character("7", "WONG", (30, 145, 245), (190, 225, 255)),
-    "8": Character("8", "THE ANCIENT ONE", (125, 205, 95), (225, 245, 175)),
+    "1": Character("1", "DOCTOR STRANGE", (0, 155, 255), (80, 220, 255)),
+    "2": Character("2", "SCARLET WITCH", (0, 0, 235), (70, 35, 255)),
+    "3": Character("3", "AGATHA HARKNESS", (220, 35, 235), (245, 145, 255)),
+    "4": Character("4", "LOKI", (45, 205, 55), (145, 255, 155)),
+    "5": Character("5", "THOR", (255, 205, 65), (255, 250, 225)),
+    "6": Character("6", "WONG", (0, 145, 255), (70, 215, 255)),
+    "7": Character("7", "THE ANCIENT ONE", (70, 190, 130), (175, 245, 190)),
 }
 
 # MediaPipe Gesture Recognizer model configuration
-from pathlib import Path
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MODEL_DIR = PROJECT_ROOT / "models"
 MODEL_PATH = MODEL_DIR / "gesture_recognizer.task"
@@ -30,6 +29,3 @@ MODEL_URL = (
     "gesture_recognizer.task"
 )
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
-
-# Ninth character selection
-CHARACTERS["9"] = Character("9", "WICCAN", (190, 80, 235), (245, 190, 255))

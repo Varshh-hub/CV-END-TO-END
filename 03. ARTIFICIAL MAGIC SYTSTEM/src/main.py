@@ -21,7 +21,7 @@ def draw_hud(frame, character, hands, fps, show_help=True):
     cv2.putText(frame, status, (w - 230, 36),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (235, 235, 245), 1, cv2.LINE_AA)
     if show_help:
-        help_text = "1 Strange  2 Wanda  3 Agatha  4 Loki  5 Thor  6 Hela  7 Wong  8 Ancient One  9 Wiccan"
+        help_text = "1 Strange  2 Wanda  3 Agatha  4 Loki  5 Thor  6 Wong  7 Ancient One"
         cv2.putText(frame, help_text, (16, h - 18),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.43, (210, 215, 235), 1, cv2.LINE_AA)
         cv2.putText(frame, "Q: quit | H: hide help | S: show/hide hand skeleton",
@@ -80,7 +80,7 @@ def run(
         fps = 0.0
 
         print("\nMYSTIC MOTION started.")
-        print("Select characters using keys 1-9.")
+        print("Select characters using keys 1-7.")
         print("H = Help | S = Skeleton | Q = Quit\n")
 
         while True:

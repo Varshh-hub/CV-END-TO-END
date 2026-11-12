@@ -67,3 +67,28 @@ class HandTracker:
 
     def close(self):
         self.recognizer.close()
+
+
+class PersonSegmenter:
+    """Segments the person in the webcam frame for the Thanos disappearance effect."""
+
+    def __init__(self):
+        selfie = getattr(mp, "solutions", None)
+        if selfie is None or not hasattr(selfie, "selfie_segmentation"):
+            raise RuntimeError(
+                "This MediaPipe build does not expose selfie_segmentation. "
+                "Install mediapipe==0.10.14 and restart the kernel."
+            )
+        self.segmenter = selfie.selfie_segmentation.SelfieSegmentation(
+            model_selection=1
+        )
+
+    def mask(self, bgr_frame):
+        rgb = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
+        result = self.segmenter.process(rgb)
+        if result.segmentation_mask is None:
+            return None
+        return result.segmentation_mask
+
+    def close(self):
+        self.segmenter.close()

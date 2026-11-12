@@ -57,7 +57,7 @@ def bloom_composite(frame, overlay, blur=13, bloom_strength=0.8, detail_strength
     frame[:] = cv2.addWeighted(frame, 1.0, overlay, detail_strength, 0)
 
 
-def mandala(layer, center, radius, color, accent, t, ancient=False):
+def mandala(layer, center, radius, color, accent, t):
     """Layered, symmetrical sorcerer mandala: clean geometry, ticks and runes."""
     cx, cy = center
     radius = max(34, int(radius))
@@ -101,20 +101,6 @@ def mandala(layer, center, radius, color, accent, t, ancient=False):
     # Bright central seal.
     cv2.circle(layer, center, max(8, int(radius * 0.16)), color, 2, cv2.LINE_AA)
     cv2.circle(layer, center, max(3, int(radius * 0.07)), accent, 2, cv2.LINE_AA)
-
-    if ancient:
-        # Additional fine petal geometry, characteristic of the Ancient One's
-        # layered golden-green spell language.
-        for i in range(12):
-            a = math.tau * i / 12 + t * 0.02
-            p1 = (int(cx + math.cos(a) * radius * 0.26),
-                  int(cy + math.sin(a) * radius * 0.26))
-            p2 = (int(cx + math.cos(a + 0.20) * radius * 0.57),
-                  int(cy + math.sin(a + 0.20) * radius * 0.57))
-            p3 = (int(cx + math.cos(a + 0.40) * radius * 0.26),
-                  int(cy + math.sin(a + 0.40) * radius * 0.26))
-            poly(layer, (p1, p2, p3), accent, 1)
-
 
 def electric_bolt(layer, start, end, color, seed, amplitude=16, branches=2, thickness=2):
     """Jagged branching lightning with a bright white-hot core."""
@@ -170,7 +156,7 @@ def energy_wisp(layer, start, end, color, t, seed=0, width=3):
 
 
 class MagicRenderer:
-    """Seven distinct, webcam-driven magic styles based on the supplied references.
+    """Six distinct, webcam-driven magic styles based on the supplied references.
 
     These are procedural real-time VFX approximations, not original movie assets.
     """
@@ -195,89 +181,132 @@ class MagicRenderer:
         glow(overlay, palm, 7, (0, 165, 255), (255, 245, 220))
 
     def _render_wanda(self, overlay, palm, tips, elapsed, open_hand):
-        # Crimson source orb and diffuse red aura.
-        pulse = 1.0 + 0.16 * math.sin(elapsed * 7.0)
-        glow(overlay, palm, int(19 * pulse), (0, 0, 245), (255, 235, 245))
-        cv2.circle(overlay, palm, 31, (0, 0, 190), 2, cv2.LINE_AA)
-        # Short, turbulent tendrils emerging from the palm/fingertips.
+        # Scarlet Witch: a turbulent crimson core with rotating chaos sigils.
+        pulse = 1.0 + 0.22 * math.sin(elapsed * 8.0)
+        glow(overlay, palm, int(24 * pulse), (0, 0, 245), (255, 225, 245))
+        cv2.circle(overlay, palm, 34, (0, 0, 205), 2, cv2.LINE_AA)
+        cv2.ellipse(overlay, palm, (49, 31), elapsed * 34, 18, 315,
+                    (0, 0, 245), 2, cv2.LINE_AA)
+        cv2.ellipse(overlay, palm, (57, 40), -elapsed * 27, 205, 500,
+                    (35, 25, 220), 2, cv2.LINE_AA)
+
+        # Red tendrils flare outward, then curl back toward the palm.
         active = tips[1:] if open_hand else [tips[1]]
         for i, tip in enumerate(active):
-            energy_wisp(overlay, palm, tip, (0, 0, 235), elapsed,
-                        seed=40 + i, width=3)
-        # Red wisps curl around the hand instead of drawing a web of lines.
-        for i in range(5):
-            a = elapsed * 0.75 + i * math.tau / 5
-            end = (int(palm[0] + math.cos(a) * 48),
-                   int(palm[1] + math.sin(a) * 38))
-            energy_wisp(overlay, palm, end, (0, 0, 185), elapsed,
-                        seed=100 + i, width=2)
+            energy_wisp(overlay, palm, tip, (0, 0, 245),
+                        elapsed + i * 0.12, seed=40 + i, width=4)
+        for i in range(7):
+            angle = elapsed * 0.9 + i * math.tau / 7
+            end = (int(palm[0] + math.cos(angle) * 62),
+                   int(palm[1] + math.sin(angle) * 47))
+            energy_wisp(overlay, palm, end, (0, 0, 205),
+                        elapsed + i * 0.08, seed=120 + i, width=2)
+        for i in range(12):
+            angle = elapsed * 0.45 + i * math.tau / 12
+            x = int(palm[0] + math.cos(angle) * 68)
+            y = int(palm[1] + math.sin(angle) * 53)
+            cv2.circle(overlay, (x, y), 2, (65, 55, 255), -1, cv2.LINE_AA)
 
     def _render_agatha(self, overlay, palm, tips, elapsed, open_hand):
-        # Purple energy gathers in the palm and coils around the fingertips.
-        glow(overlay, palm, 16, (220, 35, 235), (255, 245, 255))
+        # Agatha: deep violet witchfire, layered coils and a dark-purple corona.
+        pulse = 1.0 + 0.15 * math.sin(elapsed * 5.5)
+        glow(overlay, palm, int(20 * pulse), (175, 25, 205), (255, 220, 255))
+        cv2.ellipse(overlay, palm, (38, 25), elapsed * 25, 0, 330,
+                    (205, 45, 235), 3, cv2.LINE_AA)
+        cv2.ellipse(overlay, palm, (52, 37), -elapsed * 19, 30, 350,
+                    (145, 25, 195), 2, cv2.LINE_AA)
         for i, tip in enumerate(tips[1:]):
             if open_hand or i == 0:
-                energy_wisp(overlay, palm, tip, (225, 45, 245),
-                            elapsed + i * 0.2, seed=200 + i, width=2)
-        # Small purple corona around the palm; no generic circular shield.
-        for i in range(3):
-            a = elapsed * 0.7 + i * math.tau / 3
-            q = (int(palm[0] + math.cos(a) * 27),
-                 int(palm[1] + math.sin(a) * 23))
-            cv2.circle(overlay, q, 4, (245, 90, 255), -1, cv2.LINE_AA)
+                energy_wisp(overlay, palm, tip, (190, 35, 225),
+                            elapsed + i * 0.18, seed=220 + i, width=3)
+        # Separate floating sparks create a smoky, spell-casting halo.
+        for i in range(9):
+            angle = elapsed * 0.55 + i * math.tau / 9
+            radius_x = 58 + 7 * math.sin(elapsed * 2 + i)
+            radius_y = 43 + 5 * math.cos(elapsed * 2.3 + i)
+            q = (int(palm[0] + math.cos(angle) * radius_x),
+                 int(palm[1] + math.sin(angle) * radius_y))
+            cv2.circle(overlay, q, 2 + (i % 2), (225, 95, 255), -1, cv2.LINE_AA)
+        glow(overlay, palm, 5, (205, 45, 245), (255, 245, 255))
 
     def _render_loki(self, overlay, palm, tips, elapsed, open_hand):
-        # Emerald electrical discharge; irregular bolts radiate from the palm.
-        glow(overlay, palm, 13, (35, 205, 45), (230, 255, 225))
+        # Loki: elegant emerald illusion ribbons, not generic lightning bolts.
+        glow(overlay, palm, 16, (35, 175, 45), (220, 255, 220))
+        cv2.ellipse(overlay, palm, (43, 28), elapsed * 32, 25, 320,
+                    (45, 210, 70), 2, cv2.LINE_AA)
+        cv2.ellipse(overlay, palm, (58, 39), -elapsed * 23, 70, 355,
+                    (25, 145, 45), 2, cv2.LINE_AA)
         selected = tips[1:] if open_hand else [tips[1]]
         for i, tip in enumerate(selected):
-            electric_bolt(overlay, palm, tip, (35, 225, 65),
-                          int(elapsed * 18) + i * 13, 13, 2, 3)
-        # A few detached arcs add the green electrical atmosphere.
+            energy_wisp(overlay, palm, tip, (45, 220, 70),
+                        elapsed + i * 0.16, seed=320 + i, width=3)
+        # Small rotating diamond sigils reinforce the illusion/mischief look.
         for i in range(4):
-            a = elapsed * 0.9 + i * math.tau / 4
-            end = (int(palm[0] + math.cos(a) * 52),
-                   int(palm[1] + math.sin(a) * 44))
-            electric_bolt(overlay, palm, end, (55, 190, 35),
-                          int(elapsed * 15) + 300 + i, 9, 1, 2)
+            angle = elapsed * 0.7 + i * math.tau / 4
+            cx = int(palm[0] + math.cos(angle) * 54)
+            cy = int(palm[1] + math.sin(angle) * 40)
+            r = 7
+            diamond = [(cx, cy-r), (cx+r, cy), (cx, cy+r), (cx-r, cy)]
+            poly(overlay, diamond, (75, 235, 100), 2, True)
+        for i in range(5):
+            angle = elapsed * 0.6 + i * math.tau / 5
+            end = (int(palm[0] + math.cos(angle) * 66),
+                   int(palm[1] + math.sin(angle) * 48))
+            energy_wisp(overlay, palm, end, (30, 155, 45),
+                        elapsed + i * 0.1, seed=360 + i, width=2)
 
     def _render_thor(self, overlay, palm, tips, elapsed, open_hand, fist):
-        # Cold blue-white lightning, with a bright central discharge.
-        glow(overlay, palm, 16 if fist else 11, (255, 175, 35), (255, 255, 255))
+        # Thor: a concentrated storm core with branching blue-white lightning.
+        pulse = 1.0 + 0.18 * math.sin(elapsed * 10.0)
+        glow(overlay, palm, int(19 * pulse), (255, 170, 35), (255, 255, 255))
         selected = tips if open_hand else [tips[1]]
         for i, tip in enumerate(selected):
-            electric_bolt(overlay, palm, tip, (255, 205, 70),
-                          int(elapsed * 22) + i * 31, 19, 3, 3)
-        # Upward forks suggest the large storm-lightning look in the reference.
+            electric_bolt(overlay, palm, tip, (255, 205, 65),
+                          int(elapsed * 28) + i * 37, 22, 3, 4)
+        # A dominant upward strike and side forks make the effect read as thunder.
+        targets = [
+            (palm[0] - 18, max(8, palm[1] - 150)),
+            (palm[0] + 8, max(8, palm[1] - 185)),
+            (palm[0] + 38, max(8, palm[1] - 135)),
+        ]
+        for i, end in enumerate(targets):
+            electric_bolt(overlay, palm, end, (255, 225, 125),
+                          int(elapsed * 31) + 520 + i * 19, 27, 3, 4)
+        # Short electric arcs orbit the wrist/palm between larger strikes.
         for i in range(3):
-            end = (palm[0] + (i - 1) * 35, max(8, palm[1] - 115 - i * 17))
-            electric_bolt(overlay, palm, end, (255, 225, 145),
-                          int(elapsed * 20) + 500 + i, 22, 2, 3)
+            angle = elapsed * 1.4 + i * math.tau / 3
+            end = (int(palm[0] + math.cos(angle) * 57),
+                   int(palm[1] + math.sin(angle) * 42))
+            electric_bolt(overlay, palm, end, (255, 185, 65),
+                          int(elapsed * 24) + 610 + i, 10, 1, 2)
 
-    def _render_wong(self, overlay, palm, elapsed, power):
-        # Distinct orange-gold circular shield with segmented outer rim.
-        radius = int(76 + 18 * power)
-        mandala(overlay, palm, radius, (0, 135, 255), (60, 205, 255), elapsed)
-        # Stronger segmented shield border.
-        for i in range(16):
-            start = int(i * 22.5 + elapsed * 9)
-            cv2.ellipse(overlay, palm, (radius + 9, radius + 9), 0,
-                        start, start + 13, (0, 175, 255), 3, cv2.LINE_AA)
-        glow(overlay, palm, 5, (0, 150, 255), (255, 250, 225))
+    def _render_thanos(self, overlay, palm, tips, elapsed, open_hand, points, width, height):
+        """Purple cosmic energy and an Infinity-Gauntlet-inspired hand overlay."""
+        pulse = 1.0 + 0.12 * math.sin(elapsed * 4.5)
+        glow(overlay, palm, int(22 * pulse), (155, 65, 205), (235, 205, 255))
 
-    def _render_ancient_one(self, overlay, palm, elapsed, power):
-        radius = int(83 + 15 * power)
-        mandala(overlay, palm, radius, (70, 190, 130), (175, 245, 190),
-                elapsed, ancient=True)
-        # Delicate luminous inner spokes, not long finger connections.
-        for i in range(12):
-            a = elapsed * 0.08 + i * math.tau / 12
-            p1 = (int(palm[0] + math.cos(a) * radius * 0.18),
-                  int(palm[1] + math.sin(a) * radius * 0.18))
-            p2 = (int(palm[0] + math.cos(a) * radius * 0.34),
-                  int(palm[1] + math.sin(a) * radius * 0.34))
-            cv2.line(overlay, p1, p2, (190, 255, 205), 2, cv2.LINE_AA)
-        glow(overlay, palm, 6, (90, 205, 145), (240, 255, 235))
+        # Six Infinity-Stone coloured lights orbit the palm.
+        stone_colors = [
+            (30, 30, 235), (30, 190, 245), (210, 55, 190),
+            (55, 210, 70), (220, 150, 35), (190, 80, 220)
+        ]
+        for i, color in enumerate(stone_colors):
+            angle = elapsed * 0.45 + i * math.tau / 6
+            x = int(palm[0] + math.cos(angle) * 43)
+            y = int(palm[1] + math.sin(angle) * 34)
+            glow(overlay, (x, y), 5, color, (255, 255, 255))
+
+        # Purple energy filaments extend from the palm toward the fingers.
+        selected = tips[1:] if open_hand else [tips[1]]
+        for i, tip in enumerate(selected):
+            energy_wisp(overlay, palm, tip, (165, 75, 225),
+                        elapsed + i * 0.12, seed=820 + i, width=3)
+
+        # A gold cuff at the wrist gives the hand a gauntlet-like silhouette.
+        wrist = to_px(points[0, :2], width, height)
+        cv2.circle(overlay, wrist, 15, (35, 175, 235), 4, cv2.LINE_AA)
+        cv2.circle(overlay, wrist, 10, (80, 215, 255), 2, cv2.LINE_AA)
+        glow(overlay, palm, 5, (175, 80, 225), (255, 245, 255))
 
     def render_hand(self, frame, character: Character, hand, elapsed, hand_id=0):
         height, width = frame.shape[:2]
@@ -301,10 +330,8 @@ class MagicRenderer:
             self._render_loki(overlay, palm, tips, elapsed, open_hand)
         elif name == "THOR":
             self._render_thor(overlay, palm, tips, elapsed, open_hand, fist)
-        elif name == "WONG":
-            self._render_wong(overlay, palm, elapsed, power)
-        elif name == "THE ANCIENT ONE":
-            self._render_ancient_one(overlay, palm, elapsed, power)
+        elif name == "THANOS":
+            self._render_thanos(overlay, palm, tips, elapsed, open_hand, points, width, height)
 
         # Pinch focuses the existing effect at the fingertips; it does not add
         # another generic ring around the hand.
@@ -364,17 +391,15 @@ class MagicRenderer:
                               19 + i * 4, 2, 2)
             glow(overlay, midpoint, 8, (45, 220, 65))
 
-        elif name in ("DOCTOR STRANGE", "WONG", "THE ANCIENT ONE"):
+        elif name == "DOCTOR STRANGE":
             radius = int(np.clip(distance * 0.48, 55, min(width, height) * 0.34))
-            if name == "DOCTOR STRANGE":
-                mandala(overlay, midpoint, radius, (0, 155, 255),
-                        (80, 220, 255), elapsed)
-            elif name == "WONG":
-                mandala(overlay, midpoint, radius, (0, 135, 255),
-                        (60, 205, 255), elapsed)
-            else:
-                mandala(overlay, midpoint, radius, (70, 190, 130),
-                        (175, 245, 190), elapsed, ancient=True)
+            mandala(overlay, midpoint, radius, (0, 155, 255),
+                    (80, 220, 255), elapsed)
+
+        elif name == "THANOS":
+            for i, color in enumerate(((155, 65, 205), (80, 120, 235), (35, 190, 225))):
+                energy_wisp(overlay, c1, c2, color, elapsed + i * 0.22, 850 + i, 3)
+            glow(overlay, midpoint, 18, (155, 65, 205), (245, 220, 255))
 
         bloom_composite(frame, overlay, blur=16, bloom_strength=0.85,
                         detail_strength=0.90)

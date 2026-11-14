@@ -5,9 +5,8 @@
 
 import {
   FilesetResolver,
-  GestureRecognizer,
-  ImageSegmenter
-} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.mjs";
+  GestureRecognizer
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
 
 import {
   CHARACTERS,
@@ -39,19 +38,18 @@ const btnRetry = document.getElementById("btn-retry");
 
 // Application State
 let gestureRecognizer = null;
-let imageSegmenter = null;
 let running = false;
 let activeCharKey = "1";
 let showSkeleton = false;
 let mirror = true;
-let backgroundPlate = null; // Stored canvas image for instant clean dissolution
+let backgroundPlate = null;
 
 // Thanos Snap State
 let isVanished = false;
 let transitionStart = null;
 let transitionFrom = 0.0;
 let transitionTo = 0.0;
-const transitionDuration = 1.2; // seconds
+const transitionDuration = 1.2;
 
 // Snap Detector State
 const pinchedAt = new Map();
@@ -63,19 +61,20 @@ const renderer = new MagicRenderer();
 let lastFrameTime = performance.now();
 let fps = 60;
 let lastVideoTime = -1;
+let lastInferenceTimestamp = 0;
 
 // Smoothing State
 const smoothedHands = new Map();
 const SMOOTHING_ALPHA = 0.70;
 
 // ----------------------------------------------------------------------------
-// MediaPipe Initialization
+// MediaPipe Initialization (Pinned to 0.10.14 for Rock-Solid Reliability)
 // ----------------------------------------------------------------------------
 async function initVision() {
   try {
     loadingDesc.textContent = "Loading WebAssembly vision runtime from CDN...";
     const vision = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
     );
 
     loadingDesc.textContent = "Loading MediaPipe Gesture Recognizer...";
@@ -89,21 +88,6 @@ async function initVision() {
       minHandDetectionConfidence: 0.55,
       minTrackingConfidence: 0.50
     });
-
-    loadingDesc.textContent = "Loading MediaPipe Selfie Segmenter...";
-    try {
-      imageSegmenter = await ImageSegmenter.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite",
-          delegate: "GPU"
-        },
-        runningMode: "VIDEO",
-        outputCategoryMask: false,
-        outputConfidenceMasks: true
-      });
-    } catch (segErr) {
-      console.warn("Selfie segmenter initialization warning:", segErr);
-    }
 
     loadingDesc.textContent = "Connecting to webcam...";
     await startCamera();
@@ -119,9 +103,16 @@ async function initVision() {
 }
 
 // ----------------------------------------------------------------------------
-// Camera Stream Initialization
+// Camera Stream Initialization with Fallback & Re-entrance Protection
 // ----------------------------------------------------------------------------
 async function startCamera() {
+  // Release any existing tracks so webcam isn't locked on page refresh
+  if (video.srcObject) {
+    try {
+      video.srcObject.getTracks().forEach(t => t.stop());
+    } catch (_) {}
+  }
+
   const stream = await navigator.mediaDevices.getUserMedia({
     video: {
       width: { ideal: 1280 },
@@ -132,13 +123,30 @@ async function startCamera() {
   });
 
   video.srcObject = stream;
+
+  // Ensure playback starts without hanging on autoplay policy
+  try {
+    await video.play();
+  } catch (playErr) {
+    console.warn("Autoplay notice, will resume on user interaction:", playErr);
+  }
+
+  // Robust dimensions resolution: handles instant cache and slow event dispatch
   await new Promise(resolve => {
-    video.onloadedmetadata = () => {
-      video.play();
+    if (video.readyState >= 2 && video.videoWidth > 0) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      return resolve();
+    }
+    const onLoaded = () => {
       canvas.width = video.videoWidth || 1280;
       canvas.height = video.videoHeight || 720;
+      video.removeEventListener("loadeddata", onLoaded);
       resolve();
     };
+    video.addEventListener("loadeddata", onLoaded);
+    // 800ms safety timeout fallback
+    setTimeout(onLoaded, 800);
   });
 }
 
@@ -150,11 +158,10 @@ function updateSnapDetector(hands, nowSec) {
 
   hands.forEach((hand, handId) => {
     const points = hand.points;
-    const p0 = points[0]; // wrist
-    const p9 = points[9]; // middle mcp
+    const p0 = points[0];
+    const p9 = points[9];
     const handScale = Math.hypot(p9.x - p0.x, p9.y - p0.y) + 1e-5;
 
-    // Distance between thumb tip (4) and index tip (8)
     const p4 = points[4];
     const p8 = points[8];
     const relDist = Math.hypot(p4.x - p8.x, p4.y - p8.y) / handScale;
@@ -177,7 +184,6 @@ function updateSnapDetector(hands, nowSec) {
     previousDistance.set(handId, relDist);
   });
 
-  // Purge stale pinches
   for (const [id, time] of pinchedAt.entries()) {
     if (id >= hands.length || (nowSec - time) > 0.6) {
       pinchedAt.delete(id);
@@ -218,7 +224,7 @@ function drawSkeleton(ctx, points, width, height) {
 }
 
 // ----------------------------------------------------------------------------
-// Main Real-Time Render Loop
+// Main Real-Time Render Loop (Protected Against Monotonic Timestamp Crashes)
 // ----------------------------------------------------------------------------
 function renderLoop(currentTime) {
   if (!running) return;
@@ -229,7 +235,6 @@ function renderLoop(currentTime) {
   const dt = Math.max(1e-4, (currentTime - lastFrameTime) / 1000);
   lastFrameTime = currentTime;
 
-  // Compute smoothed FPS
   const currentFps = 1 / dt;
   fps = Math.round(0.9 * fps + 0.1 * currentFps);
   fpsCounterEl.textContent = fps;
@@ -243,38 +248,47 @@ function renderLoop(currentTime) {
   ctx.drawImage(video, 0, 0, width, height);
   ctx.restore();
 
-  // Run MediaPipe Gesture Recognition
+  // Run MediaPipe Gesture Recognition safely
   const detectedHands = [];
-  if (gestureRecognizer && video.currentTime !== lastVideoTime) {
+  if (gestureRecognizer && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
     lastVideoTime = video.currentTime;
-    const results = gestureRecognizer.recognizeForVideo(video, Math.round(currentTime));
 
-    if (results && results.landmarks) {
-      results.landmarks.forEach((landmarks, index) => {
-        let pts = landmarks.map(p => ({
-          x: mirror ? 1.0 - p.x : p.x,
-          y: p.y,
-          z: p.z || 0
-        }));
+    // MediaPipe strictly enforces monotonically increasing timestamps
+    const nowMs = Math.round(performance.now());
+    const timestampMs = Math.max(lastInferenceTimestamp + 1, nowMs);
+    lastInferenceTimestamp = timestampMs;
 
-        // Temporal EMA landmark smoothing
-        const key = `hand_${index}`;
-        if (smoothedHands.has(key)) {
-          const prev = smoothedHands.get(key);
-          pts = pts.map((pt, i) => ({
-            x: SMOOTHING_ALPHA * pt.x + (1 - SMOOTHING_ALPHA) * prev[i].x,
-            y: SMOOTHING_ALPHA * pt.y + (1 - SMOOTHING_ALPHA) * prev[i].y,
-            z: pt.z
+    try {
+      const results = gestureRecognizer.recognizeForVideo(video, timestampMs);
+      if (results && results.landmarks) {
+        results.landmarks.forEach((landmarks, index) => {
+          let pts = landmarks.map(p => ({
+            x: mirror ? 1.0 - p.x : p.x,
+            y: p.y,
+            z: p.z || 0
           }));
-        }
-        smoothedHands.set(key, pts);
 
-        const gesture = results.gestures && results.gestures[index] && results.gestures[index][0]
-          ? results.gestures[index][0].categoryName
-          : "None";
+          const key = `hand_${index}`;
+          if (smoothedHands.has(key)) {
+            const prev = smoothedHands.get(key);
+            pts = pts.map((pt, i) => ({
+              x: SMOOTHING_ALPHA * pt.x + (1 - SMOOTHING_ALPHA) * prev[i].x,
+              y: SMOOTHING_ALPHA * pt.y + (1 - SMOOTHING_ALPHA) * prev[i].y,
+              z: pt.z
+            }));
+          }
+          smoothedHands.set(key, pts);
 
-        detectedHands.push({ points: pts, gesture });
-      });
+          const gesture = results.gestures && results.gestures[index] && results.gestures[index][0]
+            ? results.gestures[index][0].categoryName
+            : "None";
+
+          detectedHands.push({ points: pts, gesture });
+        });
+      }
+    } catch (inferErr) {
+      // Catch and skip dropped frames to prevent killing animation loop
+      console.warn("Inference frame skipped:", inferErr);
     }
   }
 
@@ -331,23 +345,20 @@ function applyDisappearance(ctx, width, height, progress, elapsed) {
 
   ctx.save();
   if (backgroundPlate) {
-    // If background plate was captured, blend into clean background
     ctx.globalAlpha = Math.min(1.0, progress * 1.15);
     ctx.drawImage(backgroundPlate, 0, 0, width, height);
   } else {
-    // Dark cosmic dissolution overlay
     ctx.fillStyle = `rgba(18, 10, 24, ${progress * 0.88})`;
     ctx.fillRect(0, 0, width, height);
   }
   ctx.restore();
 
-  // Floating upward cosmic ash & purple/gold sparks
   const count = Math.floor(18 * progress);
   for (let i = 0; i < count; i++) {
     const rx = Math.random() * width;
     const ry = Math.random() * height;
     const vx = (Math.random() - 0.5) * 40;
-    const vy = -30 - Math.random() * 60; // Upward drift
+    const vy = -30 - Math.random() * 60;
     const colors = ["#cd9bff", "#ffea35", "#ff88ff", "#ffffff"];
     const color = colors[Math.floor(Math.random() * colors.length)];
     renderer.particles.emit(rx, ry, vx, vy, 0.6 + Math.random() * 0.4, color, 2.5);
@@ -375,12 +386,10 @@ function setActiveCharacter(key) {
   }
 }
 
-// Click to switch character
 charButtons.forEach(btn => {
   btn.addEventListener("click", () => setActiveCharacter(btn.dataset.char));
 });
 
-// Capture Background Plate Button
 btnBg.addEventListener("click", () => {
   const bgCanvas = document.createElement("canvas");
   bgCanvas.width = canvas.width;
@@ -400,27 +409,23 @@ btnBg.addEventListener("click", () => {
   }, 1200);
 });
 
-// Skeleton Toggle
 btnSkeleton.addEventListener("click", () => {
   showSkeleton = !showSkeleton;
   btnSkeleton.classList.toggle("active", showSkeleton);
 });
 
-// Help Modal
 btnHelp.addEventListener("click", () => helpModal.classList.remove("hidden"));
 btnCloseHelp.addEventListener("click", () => helpModal.classList.add("hidden"));
 helpModal.addEventListener("click", e => {
   if (e.target === helpModal) helpModal.classList.add("hidden");
 });
 
-// Retry Button
 btnRetry.addEventListener("click", () => {
   errorOverlay.classList.add("hidden");
   loadingOverlay.classList.remove("hidden");
   initVision();
 });
 
-// Keyboard Controls
 window.addEventListener("keydown", e => {
   const key = e.key.toUpperCase();
   if (CHARACTERS[key]) {
@@ -438,5 +443,20 @@ window.addEventListener("keydown", e => {
   }
 });
 
-// Initialize on Load
+// Release camera tracks cleanly on tab close or refresh
+window.addEventListener("beforeunload", () => {
+  if (video.srcObject) {
+    try {
+      video.srcObject.getTracks().forEach(t => t.stop());
+    } catch (_) {}
+  }
+});
+
+// Resume playback if browser suspended stream when tab was switched
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && video.paused && running) {
+    video.play().catch(() => {});
+  }
+});
+
 window.addEventListener("DOMContentLoaded", initVision);

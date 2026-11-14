@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/03. ARTIFICIAL MAGIC SYTSTEM/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/03. ARTIFICIAL MAGIC SYTSTEM/$1"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# MediaPipe model binaries (auto-downloaded at runtime if missing)
+models/*.task
+models/*.tflite
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini

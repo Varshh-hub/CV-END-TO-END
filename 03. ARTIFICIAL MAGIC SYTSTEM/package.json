@@ -1,0 +1,21 @@
+{
+  "name": "mystic-motion",
+  "version": "1.0.0",
+  "description": "Real-time webcam Marvel magic VFX using MediaPipe and Canvas",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx serve .",
+    "start": "npx serve ."
+  },
+  "keywords": [
+    "mediapipe",
+    "opencv",
+    "augmented-reality",
+    "marvel",
+    "vfx",
+    "computer-vision",
+    "gesture-recognition"
+  ],
+  "author": "",
+  "license": "MIT"
+}

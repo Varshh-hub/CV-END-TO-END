@@ -1,16 +1,6 @@
 {
   "version": 2,
   "cleanUrls": true,
-  "rewrites": [
-    {
-      "source": "/",
-      "destination": "/03. ARTIFICIAL MAGIC SYTSTEM/index.html"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/03. ARTIFICIAL MAGIC SYTSTEM/$1"
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",

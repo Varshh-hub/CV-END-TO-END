@@ -2,13 +2,122 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Mystic Motion Redirect</title>
-  <meta http-equiv="refresh" content="0; url='./03.%20ARTIFICIAL%20MAGIC%20SYTSTEM/'">
-  <script>
-    window.location.replace('./03.%20ARTIFICIAL%20MAGIC%20SYTSTEM/');
-  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MYSTIC MOTION — Marvel Real-Time Magic Experience</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body style="background: #0b0a12; color: #fff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
-  <p>Loading Mystic Motion Magic Experience... If not redirected, <a href="./03.%20ARTIFICIAL%20MAGIC%20SYTSTEM/" style="color: #50dcff;">click here</a>.</p>
+<body>
+  <!-- Top Navigation & Status Bar -->
+  <header class="app-header">
+    <div class="brand">
+      <span class="logo-icon">✨</span>
+      <div class="brand-text">
+        <h1>MYSTIC MOTION</h1>
+        <span class="subtitle" id="active-character-name">DOCTOR STRANGE</span>
+      </div>
+    </div>
+
+    <!-- Character Selector Pills -->
+    <nav class="character-nav" id="character-nav">
+      <button class="char-btn active" data-char="1" data-accent="#50dcff">
+        <span class="badge">1</span> Strange
+      </button>
+      <button class="char-btn" data-char="2" data-accent="#ff2346">
+        <span class="badge">2</span> Wanda
+      </button>
+      <button class="char-btn" data-char="3" data-accent="#f591ff">
+        <span class="badge">3</span> Agatha
+      </button>
+      <button class="char-btn" data-char="4" data-accent="#91ff9b">
+        <span class="badge">4</span> Loki
+      </button>
+      <button class="char-btn" data-char="5" data-accent="#fff5e1">
+        <span class="badge">5</span> Thor
+      </button>
+      <button class="char-btn" data-char="6" data-accent="#cd9bff">
+        <span class="badge">6</span> Thanos
+      </button>
+    </nav>
+
+    <!-- Stats & Actions -->
+    <div class="header-actions">
+      <div class="stat-pill">
+        <span class="stat-label">HANDS:</span>
+        <span class="stat-val" id="hands-count">0</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">FPS:</span>
+        <span class="stat-val" id="fps-counter">0</span>
+      </div>
+      <button class="action-btn" id="btn-bg" title="Capture clean room background (Key: B)">
+        📸 <span class="btn-text">BG Plate</span>
+      </button>
+      <button class="action-btn" id="btn-skeleton" title="Toggle hand tracking skeleton (Key: S)">
+        🦴 <span class="btn-text">Skeleton</span>
+      </button>
+      <button class="action-btn" id="btn-help" title="Keyboard & Gesture Help (Key: H)">
+        ❓
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Viewport -->
+  <main class="viewport-container" id="viewport-container">
+    <video id="webcam-video" autoplay playsinline muted></video>
+    <canvas id="output-canvas"></canvas>
+
+    <!-- Thanos HUD Banner -->
+    <div class="thanos-banner hidden" id="thanos-banner">
+      <div class="thanos-pulse"></div>
+      <span id="thanos-status-text">INFINITY GAUNTLET READY — PINCH & FLICK TO SNAP</span>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+      <div class="spinner"></div>
+      <h2 id="loading-title">Summoning Mystic Forces...</h2>
+      <p id="loading-desc">Initializing WebAssembly Hand Tracker & AI Vision Models...</p>
+    </div>
+
+    <!-- Error Overlay -->
+    <div class="error-overlay hidden" id="error-overlay">
+      <div class="error-box">
+        <h2>Camera Access Required</h2>
+        <p id="error-msg">Please allow camera permissions to experience Mystic Motion.</p>
+        <button class="primary-btn" id="btn-retry">Retry Access</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Help Modal -->
+  <div class="modal hidden" id="help-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Mystic Motion Controls & Magic Spells</h3>
+        <button class="close-btn" id="btn-close-help">&times;</button>
+      </div>
+      <div class="modal-body">
+        <table class="shortcuts-table">
+          <tr><th>Key</th><th>Action</th></tr>
+          <tr><td><kbd>1</kbd> – <kbd>6</kbd></td><td>Switch Marvel character mode</td></tr>
+          <tr><td><kbd>B</kbd></td><td>Capture clean background plate (for Thanos snap)</td></tr>
+          <tr><td><kbd>S</kbd></td><td>Toggle MediaPipe hand skeleton visualization</td></tr>
+          <tr><td><kbd>M</kbd></td><td>Mirror webcam feed horizontally</td></tr>
+          <tr><td><kbd>H</kbd></td><td>Toggle this help guide</td></tr>
+        </table>
+        <div class="spell-guide">
+          <h4>Thanos Finger Snap Spell:</h4>
+          <p>Select Thanos (<strong>6</strong>), bring your thumb and index finger together, then <strong>flick them apart</strong>. You will dissolve into cosmic ash and dust! Snap again to rematerialize.</p>
+          <p class="tip-text">💡 <em>Tip: Step out of view and click "BG Plate" first for seamless instant dissolution!</em></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module" src="app.js"></script>
 </body>
 </html>

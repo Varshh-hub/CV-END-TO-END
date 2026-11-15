@@ -40,6 +40,15 @@ SEGMENTER_MODEL_URL = (
     "selfie_segmenter.tflite"
 )
 
+# Selfie segmentation model
+SEGMENTER_MODEL_PATH = MODEL_DIR / "selfie_segmenter.tflite"
+
+SEGMENTER_MODEL_URL = (
+    "https://storage.googleapis.com/mediapipe-models/"
+    "image_segmenter/selfie_segmenter/float16/latest/"
+    "selfie_segmenter.tflite"
+)
+
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 # Performance & Rendering tuning
@@ -50,7 +59,6 @@ BLOOM_STRENGTH = 0.75
 DETAIL_STRENGTH = 0.92
 INPAINT_DOWNSCALE = 0.25  # Inpaint at 1/4 resolution for 16x speedup
 SMOOTHING_ALPHA = 0.65    # EMA smoothing factor for landmarks (0.0 = freeze, 1.0 = raw)
-=======
 
 # Performance & Rendering tuning
 DEFAULT_CAMERA_WIDTH = 1280
@@ -64,3 +72,4 @@ INPAINT_DOWNSCALE = 0.25  # Inpaint at 1/4 resolution for 16x speedup
 
 SMOOTHING_ALPHA = 0.65  # EMA smoothing factor for landmarks
 
+=======

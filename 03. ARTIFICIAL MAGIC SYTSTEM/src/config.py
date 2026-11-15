@@ -8,6 +8,7 @@ class Character:
     bgr: tuple
     accent: tuple
 
+
 # OpenCV colours use BGR format.
 CHARACTERS = {
     "1": Character("1", "DOCTOR STRANGE", (0, 155, 255), (80, 220, 255)),
@@ -19,6 +20,7 @@ CHARACTERS = {
 }
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 MODEL_DIR = PROJECT_ROOT / "models"
 MODEL_PATH = MODEL_DIR / "gesture_recognizer.task"
 

@@ -37,7 +37,7 @@ def draw_hud(frame, character, hands, fps, show_help=True):
     if show_help:
         cv2.putText(
             frame,
-            "1 Strange  2 Wanda  3 Agatha  4 Loki  5 Thor  6 Thanos",
+            "1 Strange  2 Wanda  3 Agatha  4 Loki  5 Thor",
             (16, h - 18),
             cv2.FONT_HERSHEY_SIMPLEX, 0.45,
             (210, 215, 235), 1, cv2.LINE_AA
@@ -82,7 +82,6 @@ def run(camera_index=0, width=1280, height=720, mirror=True):
         print("3 Agatha Harkness")
         print("4 Loki")
         print("5 Thor")
-        print("6 Thanos")
         print("H = Help | Q = Quit")
 
         while True:
@@ -159,7 +158,7 @@ def run(camera_index=0, width=1280, height=720, mirror=True):
             elif key in (ord("h"), ord("H")):
                 show_help = not show_help
 
-            elif ord("1") <= key <= ord("6"):
+            elif ord("1") <= key <= ord("5"):
                 character_key = chr(key)
                 print("Selected:", CHARACTERS[character_key].name)
 

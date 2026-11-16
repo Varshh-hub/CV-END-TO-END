@@ -91,6 +91,17 @@ def facing_each_other(hand_a, hand_b):
     return alignment_a > 0.25 and alignment_b > 0.25
 
 
+def palms_face_camera(hand_a, hand_b, threshold=0.55):
+    """Approximate whether both palms are presented toward the camera."""
+    normal_a = palm_normal(hand_a["points"])
+    normal_b = palm_normal(hand_b["points"])
+    if normal_a is None or normal_b is None:
+        return False
+    # In MediaPipe camera coordinates, a strong z component approximates
+    # a palm plane directed toward the camera. This is a heuristic.
+    return abs(float(normal_a[2])) > threshold and abs(float(normal_b[2])) > threshold
+
+
 # ============================================================
 # 2. GLOW AND COMPOSITING
 # ============================================================
@@ -395,12 +406,19 @@ class MagicRenderer:
             np.clip(smooth_speed / 900.0, 0.0, 0.75)
         )
 
+        # Apparent palm size changes as the hand moves toward/away from
+        # the camera. Keep a wider useful range than the original so this
+        # perspective change is visible in the spell size.
         base = float(
-            np.clip(hand_size * 0.92, 32.0, 105.0)
+            np.clip(hand_size * 1.08, 28.0, 145.0)
         )
 
+        # Movement adds a modest energetic expansion, while the landmark
+        # scale itself handles forward/backward movement.
+        dynamic_scale = 1.0 + movement_boost * 0.85
+
         return (
-            int(base * (1.0 + movement_boost)),
+            int(np.clip(base * dynamic_scale, 28.0, 190.0)),
             movement_boost
         )
 
@@ -731,6 +749,23 @@ class MagicRenderer:
             detail_strength=0.92
         )
 
+    # --------------------------------------------------------
+    # POSE CLASSIFIERS
+    # --------------------------------------------------------
+
+    def palms_facing_each_other(self, hand_a, hand_b):
+        return facing_each_other(hand_a, hand_b)
+
+    def palms_facing_camera(self, hand_a, hand_b, threshold=0.55):
+        normal_a = palm_normal(hand_a["points"])
+        normal_b = palm_normal(hand_b["points"])
+        if normal_a is None or normal_b is None:
+            return False
+        return (
+            abs(float(normal_a[2])) > threshold
+            and abs(float(normal_b[2])) > threshold
+        )
+
     # ========================================================
     # 6. THIRD MAGIC FORMATION BETWEEN TWO FACING PALMS
     # ========================================================
@@ -740,7 +775,8 @@ class MagicRenderer:
         frame,
         character,
         hands,
-        elapsed
+        elapsed,
+        force=False
     ):
         """
         Creates a third energy orb between two facing palms.
@@ -757,7 +793,7 @@ class MagicRenderer:
         hand_a = hands[0]
         hand_b = hands[1]
 
-        if not facing_each_other(hand_a, hand_b):
+        if not force and not facing_each_other(hand_a, hand_b):
             return
 
         h, w = frame.shape[:2]

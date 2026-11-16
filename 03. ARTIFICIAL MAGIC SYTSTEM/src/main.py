@@ -105,17 +105,43 @@ def run(camera_index=0, width=1280, height=720, mirror=True):
             hands = tracker.process(frame)
             character = CHARACTERS[character_key]
 
-            # Render individual magic on every detected palm.
-            for hand_id, hand in enumerate(hands):
-                renderer.render_hand(
-                    frame, character, hand, now, hand_id
-                )
+            # Pose-dependent formations:
+            # 1) Palms turned inward -> ONLY the shared central force orb.
+            # 2) Both palms presented to camera -> palm effects + a third
+            #    character-specific magical formation in the middle.
+            # 3) One hand / other poses -> palm-centered magic only.
 
-            # Render the third orb only when two palms face each other.
-            if len(hands) >= 2:
+            inward_pose = (
+                len(hands) >= 2
+                and renderer.palms_facing_each_other(hands[0], hands[1])
+            )
+
+            camera_pose = (
+                len(hands) >= 2
+                and renderer.palms_facing_camera(hands[0], hands[1])
+            )
+
+            if inward_pose:
+                # Avoid individual palm effects and avoid straight connecting
+                # lines: render the existing character-specific orb only.
                 renderer.render_two_hand_field(
                     frame, character, hands, now
                 )
+
+            else:
+                # Individual effects on visible palms; size adapts to apparent
+                # palm scale (near/far from camera) and motion.
+                for hand_id, hand in enumerate(hands):
+                    renderer.render_hand(
+                        frame, character, hand, now, hand_id
+                    )
+
+                # When both palms face the camera, add a distinct third
+                # magical formation centered between them, no connector lines.
+                if camera_pose:
+                    renderer.render_two_hand_field(
+                        frame, character, hands, now, force=True
+                    )
 
             draw_hud(frame, character, hands, fps, show_help)
 

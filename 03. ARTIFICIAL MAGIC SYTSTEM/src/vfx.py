@@ -47,14 +47,12 @@ def palm_normal(points):
 
 def facing_each_other(hand_a, hand_b):
     """
-    Estimate whether two palms face one another.
-
-    MediaPipe's normalized 3D landmarks are approximate,
-    so this condition may need tuning for different camera angles.
+    Tolerant 3D palm-orientation test for palms aimed toward one another.
+    Uses absolute alignment because palm-normal sign may flip across hands
+    and mirrored camera views.
     """
     points_a = hand_a["points"]
     points_b = hand_b["points"]
-
     normal_a = palm_normal(points_a)
     normal_b = palm_normal(points_b)
 
@@ -65,30 +63,27 @@ def facing_each_other(hand_a, hand_b):
     center_b = palm_center(points_b)
 
     center_a_3d = np.array([
-        center_a[0],
-        center_a[1],
+        center_a[0], center_a[1],
         np.mean(points_a[[0, 5, 9, 13, 17], 2])
     ], dtype=np.float32)
-
     center_b_3d = np.array([
-        center_b[0],
-        center_b[1],
+        center_b[0], center_b[1],
         np.mean(points_b[[0, 5, 9, 13, 17], 2])
     ], dtype=np.float32)
 
     direction_ab = center_b_3d - center_a_3d
-    distance = np.linalg.norm(direction_ab)
-
+    distance = float(np.linalg.norm(direction_ab))
     if distance < 1e-6:
         return False
 
     direction_ab /= distance
     direction_ba = -direction_ab
 
-    alignment_a = float(np.dot(normal_a, direction_ab))
-    alignment_b = float(np.dot(normal_b, direction_ba))
+    alignment_a = abs(float(np.dot(normal_a, direction_ab)))
+    alignment_b = abs(float(np.dot(normal_b, direction_ba)))
 
-    return alignment_a > 0.25 and alignment_b > 0.25
+    # Relaxed threshold accommodates imperfect MediaPipe palm-plane estimates.
+    return alignment_a > 0.16 and alignment_b > 0.16
 
 
 def palms_face_camera(hand_a, hand_b, threshold=0.55):

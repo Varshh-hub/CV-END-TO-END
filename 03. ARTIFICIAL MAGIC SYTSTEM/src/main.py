@@ -72,6 +72,7 @@ def run(camera_index=0, width=1280, height=720, mirror=True):
 
         character_key = "1"
         show_help = True
+        inward_pose_until = 0.0
 
         previous = time.perf_counter()
         fps = 0.0
@@ -110,10 +111,16 @@ def run(camera_index=0, width=1280, height=720, mirror=True):
             #    character-specific magical formation in the middle.
             # 3) One hand / other poses -> palm-centered magic only.
 
-            inward_pose = (
+            inward_detected = (
                 len(hands) >= 2
                 and renderer.palms_facing_each_other(hands[0], hands[1])
             )
+
+            # Hold inward classification briefly to prevent flickering back
+            # to the individual palm spells on uncertain landmark frames.
+            if inward_detected:
+                inward_pose_until = now + 0.22
+            inward_pose = len(hands) >= 2 and now < inward_pose_until
 
             camera_pose = (
                 len(hands) >= 2
@@ -121,22 +128,18 @@ def run(camera_index=0, width=1280, height=720, mirror=True):
             )
 
             if inward_pose:
-                # Avoid individual palm effects and avoid straight connecting
-                # lines: render the existing character-specific orb only.
+                # CENTRAL ORB ONLY: skip render_hand() entirely for both hands.
+                # force=True bypasses the renderer's original stricter check.
                 renderer.render_two_hand_field(
-                    frame, character, hands, now
+                    frame, character, hands, now, force=True
                 )
-
             else:
-                # Individual effects on visible palms; size adapts to apparent
-                # palm scale (near/far from camera) and motion.
+                # Individual palm effects for single-hand and camera-facing poses.
                 for hand_id, hand in enumerate(hands):
                     renderer.render_hand(
                         frame, character, hand, now, hand_id
                     )
 
-                # When both palms face the camera, add a distinct third
-                # magical formation centered between them, no connector lines.
                 if camera_pose:
                     renderer.render_two_hand_field(
                         frame, character, hands, now, force=True

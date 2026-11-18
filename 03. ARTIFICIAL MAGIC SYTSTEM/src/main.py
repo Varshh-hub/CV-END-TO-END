@@ -37,7 +37,7 @@ def draw_hud(frame, character, hands, fps, show_help=True):
     if show_help:
         cv2.putText(
             frame,
-            "1 Strange  2 Wanda  3 Agatha  4 Loki  5 Thor  6 Thanos",
+            "1 Strange  2 Wanda  3 Agatha  4 Loki  5 Thor",
             (16, h - 18),
             cv2.FONT_HERSHEY_SIMPLEX, 0.45,
             (210, 215, 235), 1, cv2.LINE_AA
@@ -72,6 +72,7 @@ def run(camera_index=0, width=1280, height=720, mirror=True):
 
         character_key = "1"
         show_help = True
+        inward_pose_until = 0.0
 
         previous = time.perf_counter()
         fps = 0.0
@@ -82,7 +83,6 @@ def run(camera_index=0, width=1280, height=720, mirror=True):
         print("3 Agatha Harkness")
         print("4 Loki")
         print("5 Thor")
-        print("6 Thanos")
         print("H = Help | Q = Quit")
 
         while True:
@@ -105,17 +105,35 @@ def run(camera_index=0, width=1280, height=720, mirror=True):
             hands = tracker.process(frame)
             character = CHARACTERS[character_key]
 
-            # Render individual magic on every detected palm.
-            for hand_id, hand in enumerate(hands):
-                renderer.render_hand(
-                    frame, character, hand, now, hand_id
-                )
+            inward_detected = (
+                len(hands) >= 2
+                and renderer.palms_facing_each_other(hands[0], hands[1])
+            )
 
-            # Render the third orb only when two palms face each other.
-            if len(hands) >= 2:
+            if inward_detected:
+                inward_pose_until = now + 0.22
+            inward_pose = len(hands) >= 2 and now < inward_pose_until
+
+            camera_pose = (
+                len(hands) >= 2
+                and renderer.palms_facing_camera(hands[0], hands[1])
+            )
+
+            if inward_pose:
                 renderer.render_two_hand_field(
-                    frame, character, hands, now
+                    frame, character, hands, now, force=True
                 )
+            else:
+                # Individual palm effects for single-hand and camera-facing poses.
+                for hand_id, hand in enumerate(hands):
+                    renderer.render_hand(
+                        frame, character, hand, now, hand_id
+                    )
+
+                if camera_pose:
+                    renderer.render_two_hand_field(
+                        frame, character, hands, now, force=True
+                    )
 
             draw_hud(frame, character, hands, fps, show_help)
 
@@ -133,7 +151,7 @@ def run(camera_index=0, width=1280, height=720, mirror=True):
             elif key in (ord("h"), ord("H")):
                 show_help = not show_help
 
-            elif ord("1") <= key <= ord("6"):
+            elif ord("1") <= key <= ord("5"):
                 character_key = chr(key)
                 print("Selected:", CHARACTERS[character_key].name)
 

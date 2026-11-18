@@ -7,10 +7,6 @@ import numpy as np
 from config import Character
 
 
-# ============================================================
-# 1. PALM UTILITIES
-# ============================================================
-
 def palm_center(points):
     """Calculate palm centre using wrist and MCP landmarks."""
     return np.mean(points[[0, 5, 9, 13, 17], :2], axis=0)
@@ -47,14 +43,12 @@ def palm_normal(points):
 
 def facing_each_other(hand_a, hand_b):
     """
-    Estimate whether two palms face one another.
-
-    MediaPipe's normalized 3D landmarks are approximate,
-    so this condition may need tuning for different camera angles.
+    Tolerant 3D palm-orientation test for palms aimed toward one another.
+    Uses absolute alignment because palm-normal sign may flip across hands
+    and mirrored camera views.
     """
     points_a = hand_a["points"]
     points_b = hand_b["points"]
-
     normal_a = palm_normal(points_a)
     normal_b = palm_normal(points_b)
 
@@ -65,35 +59,35 @@ def facing_each_other(hand_a, hand_b):
     center_b = palm_center(points_b)
 
     center_a_3d = np.array([
-        center_a[0],
-        center_a[1],
+        center_a[0], center_a[1],
         np.mean(points_a[[0, 5, 9, 13, 17], 2])
     ], dtype=np.float32)
-
     center_b_3d = np.array([
-        center_b[0],
-        center_b[1],
+        center_b[0], center_b[1],
         np.mean(points_b[[0, 5, 9, 13, 17], 2])
     ], dtype=np.float32)
 
     direction_ab = center_b_3d - center_a_3d
-    distance = np.linalg.norm(direction_ab)
-
+    distance = float(np.linalg.norm(direction_ab))
     if distance < 1e-6:
         return False
 
     direction_ab /= distance
     direction_ba = -direction_ab
 
-    alignment_a = float(np.dot(normal_a, direction_ab))
-    alignment_b = float(np.dot(normal_b, direction_ba))
+    alignment_a = abs(float(np.dot(normal_a, direction_ab)))
+    alignment_b = abs(float(np.dot(normal_b, direction_ba)))
 
-    return alignment_a > 0.25 and alignment_b > 0.25
+    return alignment_a > 0.16 and alignment_b > 0.16
 
 
-# ============================================================
-# 2. GLOW AND COMPOSITING
-# ============================================================
+def palms_face_camera(hand_a, hand_b, threshold=0.55):
+    """Approximate whether both palms are presented toward the camera."""
+    normal_a = palm_normal(hand_a["points"])
+    normal_b = palm_normal(hand_b["points"])
+    if normal_a is None or normal_b is None:
+        return False
+    return abs(float(normal_a[2])) > threshold and abs(float(normal_b[2])) > threshold
 
 def glow(layer, center, radius, color, core=(245, 248, 255)):
     x, y = center
@@ -149,10 +143,6 @@ def ring(
         cv2.LINE_AA
     )
 
-
-# ============================================================
-# 3. DOCTOR STRANGE MANDALA
-# ============================================================
 
 def mandala(layer, center, radius, color, accent, t, dense=1.0):
     """Rotating sorcerer mandala centred on the palm."""
@@ -241,10 +231,6 @@ def mandala(layer, center, radius, color, accent, t, dense=1.0):
     )
 
 
-# ============================================================
-# 4. ENERGY PARTICLES AND PALM ARCS
-# ============================================================
-
 def particle_cloud(
     layer,
     center,
@@ -312,22 +298,16 @@ def palm_arcs(
             cv2.LINE_AA
         )
 
-
-# ============================================================
-# 5. MAGIC RENDERER
-# ============================================================
-
 class MagicRenderer:
     """
-    Six palm-centred procedural magic styles.
+    Five palm-centred procedural magic styles.
 
     Character effects:
     1. Doctor Strange - orange sorcerer mandalas
     2. Scarlet Witch - red chaos energy
     3. Agatha - purple witchfire
     4. Loki - green illusion energy
-    5. Thor - blue-white lightning
-    6. Thanos - purple cosmic energy
+    5. Thor - gold-blue lightning
 
     Effects are automatic when hands are detected.
     No finger skeletons or landmark lines are drawn.
@@ -335,10 +315,7 @@ class MagicRenderer:
 
     def __init__(self):
         self.motion = {}
-
-    # --------------------------------------------------------
-    # MOTION ADAPTIVE SCALE
-    # --------------------------------------------------------
+        self.central_motion = None
 
     def _motion_scale(self, points, width, height, hand_id):
 
@@ -396,17 +373,15 @@ class MagicRenderer:
         )
 
         base = float(
-            np.clip(hand_size * 0.92, 32.0, 105.0)
+            np.clip(hand_size * 1.08, 28.0, 145.0)
         )
+
+        dynamic_scale = 1.0 + movement_boost * 0.85
 
         return (
-            int(base * (1.0 + movement_boost)),
+            int(np.clip(base * dynamic_scale, 28.0, 190.0)),
             movement_boost
         )
-
-    # --------------------------------------------------------
-    # RENDER MAGIC ON ONE PALM
-    # --------------------------------------------------------
 
     def render_hand(
         self,
@@ -441,10 +416,6 @@ class MagicRenderer:
 
         r = int(radius * pulse)
 
-        # ----------------------------------------------------
-        # DOCTOR STRANGE
-        # ----------------------------------------------------
-
         if name == "DOCTOR STRANGE":
 
             mandala(
@@ -469,10 +440,6 @@ class MagicRenderer:
                 overlay, palm, 9,
                 (0, 175, 255), (255, 250, 225)
             )
-
-        # ----------------------------------------------------
-        # SCARLET WITCH
-        # ----------------------------------------------------
 
         elif name == "SCARLET WITCH":
 
@@ -516,10 +483,6 @@ class MagicRenderer:
                 overlay, palm, int(r * 0.22),
                 (0, 0, 245), (255, 255, 255)
             )
-
-        # ----------------------------------------------------
-        # AGATHA HARKNESS
-        # ----------------------------------------------------
 
         elif name == "AGATHA HARKNESS":
 
@@ -566,10 +529,6 @@ class MagicRenderer:
                 (205, 45, 240), (255, 255, 255)
             )
 
-        # ----------------------------------------------------
-        # LOKI
-        # ----------------------------------------------------
-
         elif name == "LOKI":
 
             glow(
@@ -614,10 +573,6 @@ class MagicRenderer:
                 overlay, palm, int(r * 0.20),
                 (45, 195, 45), (255, 255, 255)
             )
-
-        # ----------------------------------------------------
-        # THOR
-        # ----------------------------------------------------
 
         elif name == "THOR":
 
@@ -670,59 +625,6 @@ class MagicRenderer:
                 elapsed, 100, 5
             )
 
-        # ----------------------------------------------------
-        # THANOS
-        # ----------------------------------------------------
-
-        elif name == "THANOS":
-
-            glow(
-                overlay, palm, int(r * 0.95),
-                (170, 35, 195), (255, 220, 255)
-            )
-
-            for i in range(9):
-
-                angle = (
-                    elapsed * (1.1 if i % 2 else -1.3)
-                    + i * 23
-                )
-
-                cv2.ellipse(
-                    overlay,
-                    palm,
-                    (
-                        int(r * (0.55 + i * 0.065)),
-                        int(r * (0.38 + i * 0.045))
-                    ),
-                    math.degrees(angle),
-                    0, 340,
-                    (180, 55 + (i % 2) * 35, 220),
-                    2,
-                    cv2.LINE_AA
-                )
-
-            particle_cloud(
-                overlay, palm, r * 1.25,
-                (180, 45, 210), (255, 195, 130),
-                elapsed, 180, 6
-            )
-
-            palm_arcs(
-                overlay, palm, r * 1.0,
-                (180, 50, 215), (255, 190, 100),
-                elapsed, 16
-            )
-
-            glow(
-                overlay, palm, int(r * 0.25),
-                (190, 45, 220), (255, 255, 255)
-            )
-
-        # ----------------------------------------------------
-        # COMPOSITE PALM EFFECT
-        # ----------------------------------------------------
-
         bloom_composite(
             frame,
             overlay,
@@ -731,24 +633,33 @@ class MagicRenderer:
             detail_strength=0.92
         )
 
-    # ========================================================
-    # 6. THIRD MAGIC FORMATION BETWEEN TWO FACING PALMS
-    # ========================================================
+    def palms_facing_each_other(self, hand_a, hand_b):
+        return facing_each_other(hand_a, hand_b)
+
+    def palms_facing_camera(self, hand_a, hand_b, threshold=0.55):
+        normal_a = palm_normal(hand_a["points"])
+        normal_b = palm_normal(hand_b["points"])
+        if normal_a is None or normal_b is None:
+            return False
+        return (
+            abs(float(normal_a[2])) > threshold
+            and abs(float(normal_b[2])) > threshold
+        )
 
     def render_two_hand_field(
         self,
         frame,
         character,
         hands,
-        elapsed
+        elapsed,
+        force=False
     ):
         """
-        Creates a third energy orb between two facing palms.
+        Creates one shared energy orb between two inward-facing palms.
 
-        Both individual palm effects are rendered separately
-        by render_hand().
-
-        The central orb scales with palm distance.
+        The main loop suppresses individual palm effects for this pose.
+        Orb size reacts to palm separation, outward spreading speed, and
+        shared hand movement. No connector lines are drawn.
         """
 
         if len(hands) < 2:
@@ -757,7 +668,7 @@ class MagicRenderer:
         hand_a = hands[0]
         hand_b = hands[1]
 
-        if not facing_each_other(hand_a, hand_b):
+        if not force and not facing_each_other(hand_a, hand_b):
             return
 
         h, w = frame.shape[:2]
@@ -780,23 +691,39 @@ class MagicRenderer:
         )
 
         distance = float(np.linalg.norm(b - a))
+        midpoint_arr = np.asarray(midpoint, dtype=np.float32)
 
-        # Central formation responds to distance between palms.
-        radius = int(
-            np.clip(distance * 0.22, 30, 105)
+        if self.central_motion is None:
+            center_speed = 0.0
+            gap_speed = 0.0
+        else:
+            old_midpoint, old_distance, old_time, old_center_speed, old_gap_speed = self.central_motion
+            dt = max(1 / 120, min(0.20, elapsed - old_time))
+            center_speed_now = float(
+                np.linalg.norm(midpoint_arr - old_midpoint) / dt
+            )
+            gap_speed_now = float((distance - old_distance) / dt)
+
+            center_speed = 0.68 * old_center_speed + 0.32 * center_speed_now
+            gap_speed = 0.68 * old_gap_speed + 0.32 * gap_speed_now
+
+        self.central_motion = (
+            midpoint_arr.copy(), distance, elapsed, center_speed, gap_speed
         )
 
-        pulse = 1.0 + 0.12 * math.sin(elapsed * 6.0)
+        base_radius = float(np.clip(distance * 0.25, 32, 135))
+        spread_boost = float(np.clip(max(0.0, gap_speed) / 650.0, 0.0, 0.55))
+        motion_boost = float(np.clip(center_speed / 1100.0, 0.0, 0.38))
 
-        radius = int(radius * pulse)
+        pulse = 1.0 + 0.10 * math.sin(elapsed * 6.0)
+        radius = int(np.clip(
+            base_radius * (1.0 + spread_boost + motion_boost) * pulse,
+            30, 190
+        ))
 
         overlay = np.zeros_like(frame)
 
         name = character.name
-
-        # ----------------------------------------------------
-        # DOCTOR STRANGE CENTRAL MANDALA
-        # ----------------------------------------------------
 
         if name == "DOCTOR STRANGE":
 
@@ -816,10 +743,6 @@ class MagicRenderer:
                 overlay, midpoint, int(radius * 0.30),
                 (0, 170, 255), (255, 255, 255)
             )
-
-        # ----------------------------------------------------
-        # SCARLET WITCH CENTRAL CHAOS SPHERE
-        # ----------------------------------------------------
 
         elif name == "SCARLET WITCH":
 
@@ -855,10 +778,6 @@ class MagicRenderer:
                 elapsed, 220, 21
             )
 
-        # ----------------------------------------------------
-        # AGATHA CENTRAL WITCHFIRE SPHERE
-        # ----------------------------------------------------
-
         elif name == "AGATHA HARKNESS":
 
             glow(
@@ -893,10 +812,6 @@ class MagicRenderer:
                 elapsed, 220, 22
             )
 
-        # ----------------------------------------------------
-        # LOKI CENTRAL ILLUSION SPHERE
-        # ----------------------------------------------------
-
         elif name == "LOKI":
 
             glow(
@@ -930,10 +845,6 @@ class MagicRenderer:
                 (30, 165, 25), (155, 255, 155),
                 elapsed, 190, 23
             )
-
-        # ----------------------------------------------------
-        # THOR CENTRAL LIGHTNING SPHERE
-        # ----------------------------------------------------
 
         elif name == "THOR":
 
@@ -984,53 +895,6 @@ class MagicRenderer:
                 (255, 190, 50), (255, 255, 255),
                 elapsed, 160, 24
             )
-
-        # ----------------------------------------------------
-        # THANOS CENTRAL COSMIC SPHERE
-        # ----------------------------------------------------
-
-        elif name == "THANOS":
-
-            glow(
-                overlay, midpoint, radius,
-                (170, 35, 195), (255, 225, 255)
-            )
-
-            for i in range(12):
-
-                angle = (
-                    elapsed * (1.0 if i % 2 else -1.3)
-                    + i * 20
-                )
-
-                cv2.ellipse(
-                    overlay,
-                    midpoint,
-                    (
-                        int(radius * (0.6 + i * 0.045)),
-                        int(radius * (0.4 + i * 0.035))
-                    ),
-                    math.degrees(angle),
-                    0, 340,
-                    (180, 50 + (i % 2) * 30, 220),
-                    2,
-                    cv2.LINE_AA
-                )
-
-            particle_cloud(
-                overlay, midpoint, radius * 1.5,
-                (180, 45, 210), (255, 190, 100),
-                elapsed, 240, 25
-            )
-
-            glow(
-                overlay, midpoint, int(radius * 0.32),
-                (190, 45, 220), (255, 255, 255)
-            )
-
-        # ----------------------------------------------------
-        # COMPOSITE CENTRAL ENERGY FORMATION
-        # ----------------------------------------------------
 
         bloom_composite(
             frame,

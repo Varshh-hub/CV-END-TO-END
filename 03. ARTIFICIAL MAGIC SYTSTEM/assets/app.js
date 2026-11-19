@@ -79,10 +79,10 @@ async function initVision() {
 
     loadingDesc.textContent = "Loading MediaPipe Gesture Recognizer...";
     gestureRecognizer = await GestureRecognizer.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
-        delegate: "GPU"
-      },
+    baseOptions: {
+      modelAssetPath: "./models/gesture_recognizer.task",
+      delegate: "GPU"
+    },
       runningMode: "VIDEO",
       numHands: 2,
       minHandDetectionConfidence: 0.55,

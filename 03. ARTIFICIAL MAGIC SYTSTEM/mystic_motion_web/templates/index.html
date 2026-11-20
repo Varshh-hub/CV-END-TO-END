@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mystic Motion — Live VFX Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+  <header class="topbar">
+    <a class="brand" href="#"><span class="brand-mark">✦</span><span>MYSTIC<span class="brand-light">MOTION</span></span></a>
+    <div class="top-meta"><span class="live-dot"></span><span id="connectionLabel">SYSTEM READY</span><span class="top-divider"></span><span class="version">AI VFX STUDIO <b>01</b></span></div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div class="eyebrow"><span class="eyebrow-line"></span> YOUR HANDS. YOUR UNIVERSE.</div>
+      <h1>Make a little <span>magic.</span></h1>
+      <p class="hero-copy">Real-time hand tracking meets cinematic superhero energy.<br class="desktop-break"> Choose your power and bring it to life.</p>
+    </section>
+
+    <section class="workspace">
+      <div class="stage-column">
+        <div class="stage-heading">
+          <div><div class="section-kicker">01 / LIVE EXPERIENCE</div><h2>The portal</h2></div>
+          <div class="stage-state"><span class="state-dot" id="stateDot"></span><span id="stageStatus">CAMERA STANDBY</span></div>
+        </div>
+        <div class="video-frame" id="videoFrame">
+          <img id="processedFrame" alt="Your live camera feed with real-time magic effects">
+          <video id="cameraVideo" autoplay playsinline muted></video>
+          <div class="video-overlay" id="emptyState">
+            <div class="portal-icon"><span>✧</span></div>
+            <div class="empty-title">Your portal awaits</div>
+            <p>Start your camera to summon the effects.</p>
+            <button class="primary-button" id="startButton"><span>✦</span> Activate camera</button>
+          </div>
+          <div class="corner corner-tl"></div><div class="corner corner-tr"></div>
+          <div class="corner corner-bl"></div><div class="corner corner-br"></div>
+          <div class="frame-tag"><span class="live-dot"></span> LIVE FEED</div>
+          <div class="frame-resolution" id="resolutionLabel">960 × 540</div>
+          <div class="scanline"></div>
+        </div>
+        <canvas id="captureCanvas" width="640" height="360" hidden></canvas>
+        <div class="stage-footer">
+          <div class="metric"><span class="metric-icon">◉</span><div><small>HANDS DETECTED</small><strong id="handsCount">—</strong></div></div>
+          <div class="metric"><span class="metric-icon">⌁</span><div><small>PROCESSING</small><strong id="fpsCount">— FPS</strong></div></div>
+          <div class="stage-actions"><button class="text-button" id="flipButton" disabled>↔ Mirror view</button><button class="stop-button" id="stopButton" disabled>Stop session</button></div>
+        </div>
+      </div>
+
+      <aside class="control-column">
+        <div class="section-kicker">02 / CHOOSE YOUR POWER</div>
+        <h2>Pick your energy</h2>
+        <p class="panel-copy">Each character unlocks a unique visual effect.</p>
+        <div class="character-list" id="characterList">
+          <button class="character-card active" data-key="1" style="--accent:#ff9b36"><span class="character-symbol">◉</span><span class="character-info"><b>Doctor Strange</b><small>SORCERER MANDALAS</small></span><span class="select-indicator">✦</span></button>
+          <button class="character-card" data-key="2" style="--accent:#ff405f"><span class="character-symbol">✺</span><span class="character-info"><b>Scarlet Witch</b><small>CHAOS ENERGY</small></span><span class="select-indicator">✦</span></button>
+          <button class="character-card" data-key="3" style="--accent:#c56cff"><span class="character-symbol">✧</span><span class="character-info"><b>Agatha Harkness</b><small>WITCHFIRE</small></span><span class="select-indicator">✦</span></button>
+          <button class="character-card" data-key="4" style="--accent:#6ce58a"><span class="character-symbol">⌁</span><span class="character-info"><b>Loki</b><small>ILLUSION ENERGY</small></span><span class="select-indicator">✦</span></button>
+          <button class="character-card" data-key="5" style="--accent:#ffd36a"><span class="character-symbol">ϟ</span><span class="character-info"><b>Thor</b><small>LIGHTNING FORCE</small></span><span class="select-indicator">✦</span></button>
+        </div>
+        <div class="power-note"><span class="note-icon">✧</span><div><b>Power tip</b><p>Show your palm to the camera. Bring both palms together or face them toward the camera to create a shared energy field.</p></div></div>
+        <div class="keyboard-hint"><span>QUICK SELECT</span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd><kbd>5</kbd></div>
+      </aside>
+    </section>
+
+    <section class="how-section">
+      <div class="section-kicker">03 / HOW TO CAST</div>
+      <div class="steps">
+        <div class="step"><span class="step-number">01</span><div><b>Activate camera</b><p>Allow browser camera access to begin.</p></div></div>
+        <div class="step"><span class="step-number">02</span><div><b>Choose a character</b><p>Switch powers whenever you like.</p></div></div>
+        <div class="step"><span class="step-number">03</span><div><b>Move your hands</b><p>Watch the magic follow your palms.</p></div></div>
+      </div>
+    </section>
+    <footer><span>✦ MYSTIC MOTION</span><span>POWERED BY MEDIAPIPE + OPENCV</span><span>MADE FOR THE CURIOUS</span></footer>
+  </main>
+  <div class="toast" id="toast"></div>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

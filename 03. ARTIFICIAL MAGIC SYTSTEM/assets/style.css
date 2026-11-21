@@ -1,0 +1,555 @@
+/* ==========================================================================
+   MYSTIC MOTION - Mobile-First Minimal Dark Glass UI
+   ========================================================================== */
+
+:root {
+  --bg-deep: #090a0f;
+  --surface-glass: rgba(15, 17, 26, 0.72);
+  --surface-glass-active: rgba(26, 29, 44, 0.85);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-focus: rgba(255, 255, 255, 0.22);
+  
+  --text-primary: #f2f4fc;
+  --text-muted: #8b92ad;
+  
+  /* Dynamic hero accent variables */
+  --hero-color: #ff9b00;
+  --hero-accent: #ffdc50;
+  --hero-glow: rgba(255, 155, 0, 0.35);
+
+  --dock-height: 64px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  touch-action: manipulation;
+}
+
+.app-shell {
+  position: relative;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background-color: #000;
+}
+
+/* Hidden video stream source */
+#webcam {
+  display: none;
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Main visual output canvas */
+#output-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background-color: #000;
+  z-index: 1;
+}
+
+/* ==========================================================================
+   Top HUD Bar (Mobile First)
+   ========================================================================== */
+.hud-top {
+  position: absolute;
+  top: env(safe-area-inset-top, 0px);
+  left: 0;
+  right: 0;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.app-logo {
+  font-family: 'Cinzel', serif;
+  font-weight: 900;
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  color: #ffffff;
+  display: none; /* Hidden on small mobile to maximize clean view */
+}
+
+@media (min-width: 640px) {
+  .app-logo {
+    display: inline-block;
+  }
+}
+
+.hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  background: var(--surface-glass);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--hero-accent);
+  box-shadow: 0 0 8px var(--hero-accent);
+}
+
+.chip-text {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--hero-accent);
+  text-transform: uppercase;
+}
+
+.telemetry-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  pointer-events: auto;
+}
+
+.tele-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: var(--surface-glass);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.tele-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.tele-val {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.status-pill {
+  font-weight: 700;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--hero-accent);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* ==========================================================================
+   Quick Actions Floating Controls (Mobile First)
+   ========================================================================== */
+.quick-actions {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 64px);
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 20;
+}
+
+.action-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--surface-glass);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+.action-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.action-btn:hover {
+  background: var(--surface-glass-active);
+  border-color: var(--hero-accent);
+  color: #fff;
+  box-shadow: 0 0 16px var(--hero-glow);
+}
+
+.action-btn:active {
+  transform: scale(0.92);
+}
+
+.action-btn.active {
+  border-color: var(--hero-accent);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+/* ==========================================================================
+   Bottom Mobile Dock (Scrollable pill chips)
+   ========================================================================== */
+.mobile-dock {
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  z-index: 25;
+}
+
+.dock-scroll-track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--surface-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none; /* Hide scrollbar Firefox */
+  -ms-overflow-style: none; /* Hide scrollbar IE */
+  scroll-snap-type: x mandatory;
+}
+
+.dock-scroll-track::-webkit-scrollbar {
+  display: none; /* Hide scrollbar Chrome/Safari */
+}
+
+.dock-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  scroll-snap-align: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dock-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.68rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: #fff;
+}
+
+.dock-item:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dock-item.active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--hero-color);
+  color: #fff;
+}
+
+.dock-item.active .dock-num {
+  background: var(--hero-color);
+  color: #000;
+}
+
+/* ==========================================================================
+   Help Sheet Modal (Mobile First Bottom Sheet / Modal)
+   ========================================================================== */
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 5, 8, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+  transition: opacity 0.25s ease;
+}
+
+@media (min-width: 640px) {
+  .modal-backdrop {
+    align-items: center;
+    padding: 24px;
+  }
+}
+
+.modal-backdrop.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.modal-sheet {
+  background: #11131c;
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 540px;
+  max-height: 85dvh;
+  overflow-y: auto;
+  padding: 22px;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.7);
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (min-width: 640px) {
+  .modal-sheet {
+    border-radius: 20px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+  }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.sheet-header h2 {
+  font-family: 'Cinzel', serif;
+  font-size: 1.15rem;
+  letter-spacing: 0.08em;
+  color: #fff;
+}
+
+.sheet-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.gesture-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+}
+
+.gesture-glyph {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.gesture-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gesture-info strong {
+  font-size: 0.9rem;
+  color: #fff;
+}
+
+.gesture-info span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.sheet-footer {
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.keys-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.keys-grid span {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+kbd {
+  background: #000;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.68rem;
+  font-family: monospace;
+}
+
+/* ==========================================================================
+   Clean Launch Screen
+   ========================================================================== */
+.launch-screen {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+  transition: opacity 0.4s ease;
+}
+
+.launch-screen.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.launch-card {
+  text-align: center;
+  max-width: 360px;
+  width: 100%;
+}
+
+.clean-loader {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 24px;
+}
+
+.loader-orbit {
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--hero-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loader-core {
+  position: absolute;
+  inset: 18px;
+  background: var(--hero-accent);
+  border-radius: 50%;
+  opacity: 0.8;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(0.8); opacity: 0.5; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+
+#loading-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1.3rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+#loading-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+.launch-btn {
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: 9999px;
+  border: 1px solid var(--hero-accent);
+  background: var(--hero-accent);
+  color: #000;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.launch-btn:active {
+  transform: scale(0.96);
+  opacity: 0.9;
+}
+
+.hidden {
+  display: none !important;
+}

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>MYSTIC MOTION | Live Magic Experience</title>
+  <meta name="description" content="Real-time Computer Vision Magic System powered by MediaPipe AI. Summon Marvel hero visual effects directly from your camera.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <!-- MediaPipe Hands & Camera Utils CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Camera Video Element (Source) -->
+    <video id="webcam" playsinline muted></video>
+
+    <!-- Main Live Visuals Canvas -->
+    <canvas id="output-canvas"></canvas>
+
+    <!-- Top Minimal HUD Bar -->
+    <header class="hud-top">
+      <div class="brand-group">
+        <span class="app-logo">MYSTIC MOTION</span>
+        <div class="hero-chip" id="character-badge">
+          <span class="chip-dot"></span>
+          <span class="chip-text" id="current-hero-name">DOCTOR STRANGE</span>
+        </div>
+      </div>
+
+      <div class="telemetry-group">
+        <div class="tele-item">
+          <span class="tele-label">HANDS</span>
+          <span class="tele-val" id="stat-hands">0</span>
+        </div>
+        <div class="tele-item">
+          <span class="tele-label">FPS</span>
+          <span class="tele-val" id="stat-fps">0</span>
+        </div>
+        <div class="tele-item status-pill" id="pose-tag">
+          <span id="stat-pose">READY</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Floating Quick Actions -->
+    <aside class="quick-actions">
+      <button class="action-btn" id="btn-snapshot" title="Capture Snapshot (Space)" aria-label="Capture Photo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+      </button>
+
+      <button class="action-btn" id="btn-help" title="Instructions (H)" aria-label="Help">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </button>
+    </aside>
+
+    <!-- Bottom Mobile-First Character Dock -->
+    <nav class="mobile-dock" aria-label="Character Selection">
+      <div class="dock-scroll-track">
+        <button class="dock-item active" data-char="1" data-color="#ff9b00" data-accent="#ffdc50">
+          <span class="dock-num">1</span>
+          <span class="dock-label">Strange</span>
+        </button>
+        <button class="dock-item" data-char="2" data-color="#eb0000" data-accent="#ff2346">
+          <span class="dock-num">2</span>
+          <span class="dock-label">Wanda</span>
+        </button>
+        <button class="dock-item" data-char="3" data-color="#eb23dc" data-accent="#ff91f5">
+          <span class="dock-num">3</span>
+          <span class="dock-label">Agatha</span>
+        </button>
+        <button class="dock-item" data-char="4" data-color="#37cd2d" data-accent="#9bff91">
+          <span class="dock-num">4</span>
+          <span class="dock-label">Loki</span>
+        </button>
+        <button class="dock-item" data-char="5" data-color="#41cdff" data-accent="#e1faff">
+          <span class="dock-num">5</span>
+          <span class="dock-label">Thor</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Clean Help Modal -->
+    <div class="modal-backdrop hidden" id="help-modal">
+      <div class="modal-sheet">
+        <div class="sheet-header">
+          <h2>GESTURE GUIDE</h2>
+          <button class="sheet-close-btn" id="modal-close" aria-label="Close Guide">&times;</button>
+        </div>
+        <div class="sheet-body">
+          <div class="gesture-row">
+            <div class="gesture-glyph">&#9995;</div>
+            <div class="gesture-info">
+              <strong>Open Palms</strong>
+              <span>Show one or both open palms to the camera to channel magic effects.</span>
+            </div>
+          </div>
+          <div class="gesture-row">
+            <div class="gesture-glyph">&#128588;</div>
+            <div class="gesture-info">
+              <strong>Inward Convergence</strong>
+              <span>Face both palms toward each other to summon a massive central energy vortex.</span>
+            </div>
+          </div>
+          <div class="gesture-row">
+            <div class="gesture-glyph">&#128165;</div>
+            <div class="gesture-info">
+              <strong>Camera Blast</strong>
+              <span>Push both palms flat toward the camera for a dual-cast energy shield.</span>
+            </div>
+          </div>
+          <div class="gesture-row">
+            <div class="gesture-glyph">&#9889;</div>
+            <div class="gesture-info">
+              <strong>Velocity Surge</strong>
+              <span>Move or separate hands quickly to violently expand particle density.</span>
+            </div>
+          </div>
+        </div>
+        <div class="sheet-footer">
+          <div class="keys-grid">
+            <span><kbd>1</kbd>–<kbd>5</kbd> Switch Hero</span>
+            <span><kbd>Space</kbd> Snap</span>
+            <span><kbd>H</kbd> Guide</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Clean Modern Loading State -->
+    <div class="launch-screen" id="loading-screen">
+      <div class="launch-card">
+        <div class="clean-loader">
+          <div class="loader-orbit"></div>
+          <div class="loader-core"></div>
+        </div>
+        <h2 id="loading-title">MYSTIC MOTION</h2>
+        <p id="loading-desc">Enable camera access to activate live palm vision.</p>
+        <button class="launch-btn" id="btn-start-camera">ACTIVATE CAMERA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VFX Engine (vfx.py) -->
+  <script src="js/vfx.js"></script>
+  <!-- Application Controller -->
+  <script src="js/app.js"></script>
+</body>
+</html>

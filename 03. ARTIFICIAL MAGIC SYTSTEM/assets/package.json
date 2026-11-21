@@ -1,0 +1,13 @@
+{
+  "name": "mystic-motion-magic-system",
+  "version": "1.0.0",
+  "description": "Real-time AI Palm Magic & Computer Vision System (Doctor Strange, Scarlet Witch, Agatha, Loki, Thor)",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx serve ."
+  },
+  "keywords": ["computer-vision", "mediapipe", "hand-tracking", "vfx", "marvel", "magic", "opencv"],
+  "author": "",
+  "license": "MIT"
+}

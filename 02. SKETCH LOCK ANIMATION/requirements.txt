@@ -1,4 +1,0 @@
-mediapipe==1.2.3
-ipywidgets
-notebook
-ipykernel
